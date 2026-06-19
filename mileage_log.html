@@ -1,0 +1,1773 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#1C2128">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Mileage Log">
+<link rel="manifest" href="manifest.json">
+<title>Mileage & Expenses Log</title>
+<style>
+  :root{
+    --ink:#1C2128;
+    --paper:#FAF7F0;
+    --paper-dim:#F1ECE0;
+    --amber:#D97D30;
+    --amber-dim:#B8631F;
+    --slate:#5B6472;
+    --line:#E2DDD2;
+    --line-dark:#3A4150;
+    --good:#4C7A52;
+    --bad:#B6442F;
+    --mono:'JetBrains Mono', 'SF Mono', 'Consolas', monospace;
+    --sans:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--ink); color:var(--paper);
+    font-family:var(--sans); -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+  }
+  .app{ max-width:720px; margin:0 auto; padding-bottom:84px; }
+
+  /* ---------- Header / instrument strip ---------- */
+  .topbar{
+    background:linear-gradient(180deg, #20262F 0%, #1C2128 100%);
+    border-bottom:1px solid var(--line-dark);
+    padding:18px 18px 14px;
+    position:sticky; top:0; z-index:20;
+  }
+  .topbar-row1{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; }
+  .brand{ font-family:var(--mono); font-size:11px; letter-spacing:.14em; color:var(--amber); text-transform:uppercase; }
+  .brand-sub{ font-family:var(--mono); font-size:11px; color:var(--slate); }
+  .meta-line{
+    margin-top:10px; display:grid; grid-template-columns:1fr 1fr; gap:6px 14px;
+    font-family:var(--mono); font-size:12.5px;
+  }
+  .meta-item{ display:flex; justify-content:space-between; border-bottom:1px dashed var(--line-dark); padding-bottom:4px; }
+  .meta-item span.k{ color:var(--slate); }
+  .meta-item span.v{ color:var(--paper); font-weight:600; }
+  .meta-edit-btn{
+    margin-top:10px; width:100%; background:none; border:1px solid var(--line-dark);
+    color:var(--slate); font-family:var(--sans); font-size:12px; padding:7px;
+    border-radius:6px; cursor:pointer;
+  }
+  .meta-edit-btn:active{ background:#262C36; }
+
+  .storage-banner{
+    display:none; background:#3A2A1A; border-bottom:1px solid var(--amber-dim);
+    color:var(--amber); font-size:11.5px; padding:9px 16px; line-height:1.4;
+    position:relative; padding-right:34px;
+  }
+  .storage-banner button{
+    position:absolute; top:5px; right:10px; background:none; border:none;
+    color:var(--amber); font-size:18px; cursor:pointer; line-height:1;
+  }
+
+  /* ---------- Tabs ---------- */
+  .tabs{
+    display:flex; background:#20262F; border-bottom:1px solid var(--line-dark);
+    position:sticky; top:0; z-index:19;
+  }
+  .tabs.stuck{ top:0; }
+  .tab{
+    flex:1; text-align:center; padding:12px 4px; font-family:var(--sans);
+    font-size:12.5px; font-weight:600; color:var(--slate); cursor:pointer;
+    border-bottom:2px solid transparent; letter-spacing:.01em;
+  }
+  .tab.active{ color:var(--amber); border-bottom-color:var(--amber); }
+
+  /* ---------- Content panel (paper) ---------- */
+  .panel{ background:var(--paper); color:var(--ink); min-height:60vh; }
+  .section{ padding:16px 16px 8px; display:none; }
+  .section.active{ display:block; }
+
+  .section-title{
+    font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--amber-dim); margin:4px 0 12px; display:flex; justify-content:space-between; align-items:center;
+  }
+
+  /* ---------- Forms ---------- */
+  .card{
+    background:#fff; border:1px solid var(--line); border-radius:10px;
+    padding:14px; margin-bottom:12px; box-shadow:0 1px 2px rgba(0,0,0,.03);
+  }
+  .field{ margin-bottom:11px; }
+  .field:last-child{ margin-bottom:0; }
+  .field label{
+    display:block; font-size:11.5px; color:var(--slate); margin-bottom:4px;
+    font-weight:600; letter-spacing:.02em;
+  }
+  .field input, .field select, .field textarea{
+    width:100%; border:1px solid var(--line); border-radius:7px; padding:9px 10px;
+    font-size:15px; font-family:var(--sans); background:var(--paper-dim); color:var(--ink);
+  }
+  .field input:focus, .field select:focus, .field textarea:focus{
+    outline:none; border-color:var(--amber); background:#fff;
+  }
+  .field.num input{ font-family:var(--mono); font-weight:600; }
+  .row2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .row3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
+
+  .yn-toggle{ display:flex; gap:8px; }
+  .yn-btn{
+    flex:1; padding:9px; text-align:center; border:1px solid var(--line); border-radius:7px;
+    background:var(--paper-dim); font-size:14px; font-weight:600; color:var(--slate); cursor:pointer;
+  }
+  .yn-btn.sel{ background:var(--ink); color:var(--amber); border-color:var(--ink); }
+
+  .receipt-buttons{ display:flex; gap:8px; }
+  .receipt-btn{ font-size:13px; padding:9px 8px; }
+  .receipt-preview{
+    margin-top:9px; display:flex; align-items:center; gap:10px;
+    background:var(--paper-dim); border:1px solid var(--line); border-radius:8px; padding:8px;
+  }
+  .receipt-preview img{
+    width:56px; height:56px; object-fit:cover; border-radius:6px; border:1px solid var(--line);
+    cursor:pointer;
+  }
+  .receipt-remove{
+    background:none; border:none; color:var(--bad); font-size:12.5px; font-weight:600;
+    cursor:pointer; text-decoration:underline; padding:0;
+  }
+  .receipt-thumb{
+    width:34px; height:34px; object-fit:cover; border-radius:5px; border:1px solid var(--line);
+    cursor:pointer; vertical-align:middle;
+  }
+  .receipt-lightbox{
+    position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:70; display:none;
+    align-items:center; justify-content:center; padding:20px;
+  }
+  .receipt-lightbox.show{ display:flex; }
+  .receipt-lightbox img{ max-width:100%; max-height:90vh; border-radius:6px; }
+  .receipt-lightbox-close{
+    position:absolute; top:16px; right:18px; background:none; border:none;
+    color:#fff; font-size:28px; cursor:pointer; line-height:1;
+  }
+
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:6px;
+    padding:11px 16px; border-radius:8px; font-size:14px; font-weight:700;
+    cursor:pointer; border:none; font-family:var(--sans); width:100%;
+  }
+  .btn-primary{ background:var(--ink); color:var(--amber); }
+  .btn-primary:active{ background:#2B323E; }
+  .btn-ghost{ background:none; border:1px solid var(--line); color:var(--ink); }
+  .btn-row{ display:flex; gap:8px; margin-top:4px; }
+  .btn-row .btn{ width:auto; flex:1; }
+
+  /* ---------- List rows ---------- */
+  .entry{
+    background:#fff; border:1px solid var(--line); border-radius:10px;
+    padding:11px 13px; margin-bottom:8px; position:relative;
+  }
+  .entry-top{ display:flex; justify-content:space-between; align-items:baseline; padding-right:64px; }
+  .entry-date{ font-family:var(--mono); font-size:12.5px; font-weight:700; color:var(--ink); }
+  .entry-tag{ font-size:10.5px; padding:2px 7px; border-radius:10px; background:var(--paper-dim); color:var(--slate); font-weight:700; }
+  .entry-tag.office{ background:#E7EEE7; color:var(--good); }
+  .entry-detail{ font-size:13px; color:var(--slate); margin-top:4px; line-height:1.4; }
+  .entry-nums{ display:flex; align-items:center; gap:14px; margin-top:7px; font-family:var(--mono); font-size:13px; flex-wrap:wrap; }
+  .entry-nums .receipt-thumb{ margin-left:auto; }
+  .entry-nums b{ color:var(--ink); }
+  .entry-del{
+    position:absolute; top:10px; right:10px; background:none; border:none; color:var(--bad);
+    font-size:18px; cursor:pointer; line-height:1; padding:2px 6px;
+  }
+  .entry-edit{
+    position:absolute; top:9px; right:34px; background:none; border:1px solid var(--line);
+    color:var(--slate); font-size:11px; font-weight:700; cursor:pointer; line-height:1;
+    padding:4px 8px; border-radius:5px; font-family:var(--sans);
+  }
+  .entry-edit:active{ background:var(--paper-dim); }
+  .empty-state{
+    text-align:center; padding:36px 20px; color:var(--slate); font-size:13.5px;
+  }
+  .empty-state .big{ font-size:28px; display:block; margin-bottom:8px; opacity:.5; }
+
+  /* ---------- Totals dock ---------- */
+  .dock{
+    position:fixed; bottom:0; left:0; right:0; background:#15191F;
+    border-top:1px solid var(--line-dark); padding:10px 16px 12px;
+    display:flex; z-index:30;
+  }
+  .dock-inner{ max-width:720px; margin:0 auto; display:flex; width:100%; gap:0; }
+  .dock-item{ flex:1; text-align:center; border-right:1px solid var(--line-dark); }
+  .dock-item:last-child{ border-right:none; }
+  .dock-label{ font-size:9.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--slate); }
+  .dock-value{ font-family:var(--mono); font-size:16px; font-weight:700; color:var(--amber); margin-top:2px; }
+
+  /* ---------- Action buttons bar (report/print/export) ---------- */
+  .action-bar{ display:flex; gap:8px; padding:0 16px 14px; }
+  .action-bar .btn{ font-size:12.5px; padding:10px 8px; }
+
+  /* ---------- Summary / report styling ---------- */
+  .report-block{ margin-bottom:18px; }
+  .report-head{
+    font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--slate); border-bottom:1px solid var(--line); padding-bottom:6px; margin-bottom:8px;
+  }
+  .report-row{ display:flex; justify-content:space-between; padding:5px 0; font-size:14px; border-bottom:1px dashed var(--line); }
+  .report-row.total{ font-weight:800; font-size:15.5px; border-bottom:none; border-top:1px solid var(--ink); margin-top:4px; padding-top:8px; }
+  .report-row .v{ font-family:var(--mono); }
+  .report-row .v.warn{ color:var(--bad); }
+  .report-row .v.ok{ color:var(--good); }
+
+  .daily-log-table{
+    width:100%; border-collapse:collapse; font-size:12px; font-family:var(--mono);
+  }
+  .daily-log-table th{
+    text-align:left; font-family:var(--sans); font-size:10.5px; text-transform:uppercase;
+    letter-spacing:.03em; color:var(--slate); border-bottom:1px solid var(--ink); padding:5px 6px;
+  }
+  .daily-log-table td{
+    padding:5px 6px; border-bottom:1px solid var(--line); vertical-align:top;
+  }
+  .daily-log-table tr:nth-child(even) td{ background:var(--paper-dim); }
+
+  .modal-backdrop{
+    position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:50; display:none;
+    align-items:flex-end; justify-content:center;
+  }
+  .modal-backdrop.show{ display:flex; }
+  .modal{
+    background:var(--paper); color:var(--ink); width:100%; max-width:720px;
+    border-radius:16px 16px 0 0; padding:18px 18px 22px; max-height:88vh; overflow-y:auto;
+  }
+  .modal-title{ font-family:var(--mono); font-size:13px; letter-spacing:.08em; text-transform:uppercase; color:var(--amber-dim); margin-bottom:14px; }
+  .modal-close{ float:right; background:none; border:none; font-size:20px; color:var(--slate); cursor:pointer; }
+
+  .export-opt{
+    display:flex; align-items:center; justify-content:space-between; padding:13px 14px;
+    border:1px solid var(--line); border-radius:9px; margin-bottom:9px; background:#fff;
+  }
+  .export-opt .label{ font-size:14px; font-weight:600; }
+  .export-opt .sub{ font-size:11.5px; color:var(--slate); margin-top:2px; }
+  .export-opt button{
+    background:var(--ink); color:var(--amber); border:none; border-radius:6px;
+    padding:8px 14px; font-size:12.5px; font-weight:700; cursor:pointer;
+  }
+
+  textarea#emailPreview{ font-family:var(--mono); font-size:12px; min-height:200px; white-space:pre; }
+
+  .toast{
+    position:fixed; bottom:96px; left:50%; transform:translateX(-50%);
+    background:var(--ink); color:var(--amber); padding:10px 18px; border-radius:20px;
+    font-size:13px; font-weight:600; z-index:60; opacity:0; pointer-events:none;
+    transition:opacity .25s ease, transform .25s ease;
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(-6px); }
+
+  @media print{
+    body{ background:#fff; }
+    .topbar, .tabs, .dock, .action-bar, .entry-del, .entry-edit, .meta-edit-btn, .receipt-buttons, .receipt-thumb, .storage-banner{ display:none !important; }
+    .panel{ background:#fff; }
+    .section{ display:none !important; }
+    .section.print-active{ display:block !important; }
+    .card, .entry{ box-shadow:none; }
+    .daily-log-table tr{ break-inside:avoid; }
+    .daily-log-table tr:nth-child(even) td{ background:none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+
+  <div class="topbar">
+    <div class="topbar-row1">
+      <div class="brand">Mileage &amp; Expenses Log</div>
+      <div class="brand-sub" id="monthYearTag">— / —</div>
+    </div>
+    <div class="meta-line">
+      <div class="meta-item"><span class="k">BDM</span><span class="v" id="metaName">—</span></div>
+      <div class="meta-item"><span class="k">Market</span><span class="v" id="metaMarket">—</span></div>
+      <div class="meta-item"><span class="k">Reg No.</span><span class="v" id="metaReg">—</span></div>
+      <div class="meta-item"><span class="k">Engine</span><span class="v" id="metaEngine">—</span></div>
+    </div>
+    <button class="meta-edit-btn" onclick="openMetaModal()">Edit header details</button>
+  </div>
+
+  <div id="storageBanner" class="storage-banner">
+    <span id="storageBannerText">Running without saved storage in this view — entries stay only until you close this page.</span>
+    <button onclick="document.getElementById('storageBanner').style.display='none'">&times;</button>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="mileage" onclick="switchTab('mileage')">Mileage</div>
+    <div class="tab" data-tab="expenses" onclick="switchTab('expenses')">Expenses</div>
+    <div class="tab" data-tab="fuel" onclick="switchTab('fuel')">Fuel</div>
+    <div class="tab" data-tab="summary" onclick="switchTab('summary')">Summary</div>
+  </div>
+
+  <div class="panel">
+
+    <!-- MILEAGE -->
+    <div class="section active" data-section="mileage">
+      <div class="section-title" id="mileageFormTitle">Add daily entry</div>
+      <div class="card">
+        <input type="hidden" id="m_edit_id" value="">
+        <div class="field">
+          <label>Date</label>
+          <input type="date" id="m_date">
+        </div>
+        <div class="field">
+          <label>Office day?</label>
+          <div class="yn-toggle">
+            <div class="yn-btn" id="m_office_y" onclick="setOffice('Y')">Yes</div>
+            <div class="yn-btn sel" id="m_office_n" onclick="setOffice('N')">No</div>
+          </div>
+        </div>
+        <div class="row2">
+          <div class="field"><label>Journey start</label><input type="text" id="m_start" placeholder="e.g. HOME" oninput="forceUpper(this)" style="text-transform:uppercase;"></div>
+          <div class="field"><label>Journey end</label><input type="text" id="m_end" placeholder="e.g. HOME" oninput="forceUpper(this)" style="text-transform:uppercase;"></div>
+        </div>
+        <div class="field">
+          <label>Postcodes visited</label>
+          <input type="text" id="m_postcodes" placeholder="e.g. SW1A 1AA, EC1A 1BB" oninput="forceUpper(this)" style="text-transform:uppercase;">
+        </div>
+        <div class="row2">
+          <div class="field num"><label>Business miles</label><input type="number" step="0.1" min="0" id="m_biz" placeholder="0.0"></div>
+          <div class="field num"><label>Personal miles</label><input type="number" step="0.1" min="0" id="m_pers" placeholder="0.0"></div>
+        </div>
+        <div class="field"><label>Notes (optional)</label><input type="text" id="m_notes" placeholder="Optional"></div>
+        <div class="btn-row">
+          <button class="btn btn-primary" id="m_submit_btn" onclick="saveMileage()">Add entry</button>
+          <button class="btn btn-ghost" id="m_cancel_btn" onclick="cancelMileageEdit()" style="display:none; flex:0 0 90px;">Cancel</button>
+        </div>
+      </div>
+
+      <div class="section-title">This month <span id="mileageCount" style="color:var(--slate); font-weight:400;"></span></div>
+      <div id="mileageList"></div>
+
+      <div class="section-title" style="margin-top:18px;">Odometer summary</div>
+      <div class="card">
+        <div class="report-row"><span>Start of month</span><span class="v" id="odoStartDisplay">—</span></div>
+        <div class="report-row"><span>End of month (calculated)</span><span class="v" id="odoEndDisplay">—</span></div>
+        <div id="odoCheck" style="font-size:12.5px; margin-top:8px; font-family:var(--mono);"></div>
+        <button class="btn btn-ghost" style="margin-top:10px;" onclick="openMetaModal()">Edit odometer reading</button>
+      </div>
+    </div>
+
+    <!-- EXPENSES -->
+    <div class="section" data-section="expenses">
+      <div class="section-title">Ongoing expenses</div>
+      <div class="card" id="standingChargesCard"></div>
+
+      <div class="section-title" id="expenseFormTitle">Add expense</div>
+      <div class="card">
+        <input type="hidden" id="e_edit_id" value="">
+        <div class="field"><label>Date</label><input type="date" id="e_date"></div>
+        <div class="field"><label>Notes</label><input type="text" id="e_notes" placeholder="e.g. Client lunch, parking, hotel"></div>
+        <div class="field num"><label>Expense total (£)</label><input type="number" step="0.01" min="0" id="e_total" placeholder="0.00"></div>
+        <div class="field">
+          <label>Receipt</label>
+          <div class="receipt-widget" id="e_receipt_widget">
+            <div class="receipt-buttons" id="e_receipt_buttons">
+              <button type="button" class="btn btn-ghost receipt-btn" onclick="document.getElementById('e_receipt_camera').click()">Take photo</button>
+              <button type="button" class="btn btn-ghost receipt-btn" onclick="document.getElementById('e_receipt_upload').click()">Upload image</button>
+            </div>
+            <input type="file" id="e_receipt_camera" accept="image/*" capture="environment" style="display:none;" onchange="handleReceiptFile(this,'e')">
+            <input type="file" id="e_receipt_upload" accept="image/*" style="display:none;" onchange="handleReceiptFile(this,'e')">
+            <div class="receipt-preview" id="e_receipt_preview" style="display:none;">
+              <img id="e_receipt_img" alt="Receipt preview">
+              <button type="button" class="receipt-remove" onclick="removeReceipt('e')">Remove photo</button>
+            </div>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" id="e_submit_btn" onclick="saveExpense()">Add expense</button>
+          <button class="btn btn-ghost" id="e_cancel_btn" onclick="cancelExpenseEdit()" style="display:none; flex:0 0 90px;">Cancel</button>
+        </div>
+      </div>
+
+      <div class="section-title">This month <span id="expenseCount" style="color:var(--slate); font-weight:400;"></span></div>
+      <div id="expenseList"></div>
+    </div>
+
+    <!-- FUEL -->
+    <div class="section" data-section="fuel">
+      <div class="section-title" id="fuelFormTitle">Add fuel purchase</div>
+      <div class="card">
+        <input type="hidden" id="f_edit_id" value="">
+        <div class="field"><label>Date</label><input type="date" id="f_date"></div>
+        <div class="field"><label>Invoice number</label><input type="text" id="f_invoice" placeholder="e.g. INV-00231"></div>
+        <div class="row2">
+          <div class="field num"><label>Litres</label><input type="number" step="0.01" min="0" id="f_litres" placeholder="0.00"></div>
+          <div class="field num"><label>Price per litre (£)</label><input type="number" step="0.001" min="0" id="f_price" placeholder="0.000"></div>
+        </div>
+        <div class="field">
+          <label>Receipt</label>
+          <div class="receipt-widget" id="f_receipt_widget">
+            <div class="receipt-buttons" id="f_receipt_buttons">
+              <button type="button" class="btn btn-ghost receipt-btn" onclick="document.getElementById('f_receipt_camera').click()">Take photo</button>
+              <button type="button" class="btn btn-ghost receipt-btn" onclick="document.getElementById('f_receipt_upload').click()">Upload image</button>
+            </div>
+            <input type="file" id="f_receipt_camera" accept="image/*" capture="environment" style="display:none;" onchange="handleReceiptFile(this,'f')">
+            <input type="file" id="f_receipt_upload" accept="image/*" style="display:none;" onchange="handleReceiptFile(this,'f')">
+            <div class="receipt-preview" id="f_receipt_preview" style="display:none;">
+              <img id="f_receipt_img" alt="Receipt preview">
+              <button type="button" class="receipt-remove" onclick="removeReceipt('f')">Remove photo</button>
+            </div>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" id="f_submit_btn" onclick="saveFuel()">Add fuel entry</button>
+          <button class="btn btn-ghost" id="f_cancel_btn" onclick="cancelFuelEdit()" style="display:none; flex:0 0 90px;">Cancel</button>
+        </div>
+      </div>
+
+      <div class="section-title">This month <span id="fuelCount" style="color:var(--slate); font-weight:400;"></span></div>
+      <div id="fuelList"></div>
+    </div>
+
+    <!-- SUMMARY -->
+    <div class="section" data-section="summary">
+      <div class="section-title">Monthly report</div>
+      <div id="summaryContent" class="card"></div>
+    </div>
+
+    <div class="action-bar">
+      <button class="btn btn-ghost" onclick="openReportModal()">Report</button>
+      <button class="btn btn-ghost" onclick="printReport()">Print</button>
+      <button class="btn btn-ghost" onclick="openExportModal()">Export</button>
+    </div>
+
+  </div>
+</div>
+
+<div class="dock">
+  <div class="dock-inner">
+    <div class="dock-item"><div class="dock-label">Business mi</div><div class="dock-value" id="dockBiz">0.0</div></div>
+    <div class="dock-item"><div class="dock-label">Personal mi</div><div class="dock-value" id="dockPers">0.0</div></div>
+    <div class="dock-item"><div class="dock-label">Expenses</div><div class="dock-value" id="dockExp">£0.00</div></div>
+  </div>
+</div>
+
+<!-- META MODAL -->
+<div class="modal-backdrop" id="metaModalBackdrop">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('metaModalBackdrop')">&times;</button>
+    <div class="modal-title">Header details</div>
+    <div class="field"><label>BDM name</label><input type="text" id="in_name" placeholder="Enter name"></div>
+    <div class="field"><label>Market</label><input type="text" id="in_market" placeholder="Enter market/region"></div>
+    <div class="row2">
+      <div class="field"><label>Month</label>
+        <select id="in_month">
+          <option>January</option><option>February</option><option>March</option><option>April</option>
+          <option>May</option><option>June</option><option>July</option><option>August</option>
+          <option>September</option><option>October</option><option>November</option><option>December</option>
+        </select>
+      </div>
+      <div class="field num"><label>Year</label><input type="number" id="in_year" placeholder="2026"></div>
+    </div>
+    <div class="field"><label>Vehicle registration</label><input type="text" id="in_reg" placeholder="e.g. AB12 CDE" oninput="forceUpper(this)" style="text-transform:uppercase;"></div>
+    <div class="row2">
+      <div class="field"><label>Engine size</label><input type="text" id="in_engine" placeholder="e.g. 1.6L"></div>
+      <div class="field"><label>Fuel type</label>
+        <select id="in_fuel_type">
+          <option>Petrol</option><option>Diesel</option><option>Hybrid</option><option>Electric</option>
+        </select>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field num"><label>Odometer - start of month</label><input type="number" step="1" id="in_odo_start" placeholder="0" oninput="updateOdoEndPreview()"></div>
+      <div class="field num"><label>Odometer - end of month</label><input type="text" id="in_odo_end_display" placeholder="—" disabled style="background:var(--line); color:var(--slate);"></div>
+    </div>
+    <div class="field" style="margin-top:-4px;"><span style="font-size:11px; color:var(--slate);">End of month is calculated automatically: start + total mileage logged.</span></div>
+    <button class="btn btn-primary" onclick="saveMeta()">Save details</button>
+  </div>
+</div>
+
+<!-- REPORT MODAL -->
+<div class="modal-backdrop" id="reportModalBackdrop">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('reportModalBackdrop')">&times;</button>
+    <div class="modal-title">Running totals</div>
+    <div id="reportModalContent"></div>
+  </div>
+</div>
+
+<!-- EXPORT MODAL -->
+<div class="modal-backdrop" id="exportModalBackdrop">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('exportModalBackdrop')">&times;</button>
+    <div class="modal-title">Export this month</div>
+
+    <div class="export-opt" style="border-color:var(--amber); background:#FFF8EF;">
+      <div><div class="label">Full backup</div><div class="sub" id="backupExportSub">Every month you've logged, plus receipts, in one file — save it to Google Drive or anywhere safe</div></div>
+      <button onclick="exportFullBackup()">Download</button>
+    </div>
+    <div class="export-opt" style="border-color:var(--amber); background:#FFF8EF;">
+      <div><div class="label">Restore from backup</div><div class="sub">Load a backup file on this device (e.g. moving from another phone)</div></div>
+      <button onclick="document.getElementById('restoreFileInput').click()">Choose file</button>
+      <input type="file" id="restoreFileInput" accept="application/json,.json" style="display:none;" onchange="handleRestoreFile(this)">
+    </div>
+    <div class="export-opt">
+      <div><div class="label">CSV (Excel-ready)</div><div class="sub">Mileage, expenses &amp; fuel in one file</div></div>
+      <button onclick="exportCSV()">Download</button>
+    </div>
+    <div class="export-opt">
+      <div><div class="label">PDF summary</div><div class="sub">Opens print dialog — save as PDF</div></div>
+      <button onclick="printReport()">Open</button>
+    </div>
+    <div class="export-opt">
+      <div><div class="label">Email-ready text</div><div class="sub">Copy a plain-text summary</div></div>
+      <button onclick="copyEmailSummary()">Copy</button>
+    </div>
+    <div class="export-opt">
+      <div><div class="label">Receipt photos</div><div class="sub" id="receiptExportSub">Download all attached receipts</div></div>
+      <button onclick="exportReceipts()">Download</button>
+    </div>
+    <textarea id="emailPreview" readonly style="width:100%; margin-top:10px; border:1px solid var(--line); border-radius:7px; padding:10px;"></textarea>
+  </div>
+</div>
+
+<div class="receipt-lightbox" id="receiptLightbox" onclick="closeLightbox()">
+  <button class="receipt-lightbox-close" onclick="closeLightbox()">&times;</button>
+  <img id="receiptLightboxImg" alt="Receipt" onclick="event.stopPropagation()">
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------------- State & persistence ---------------- */
+let state = {
+  meta: { name:'', market:'', month:'June', year:2026, reg:'', engine:'', fuelType:'Petrol' },
+  mileage: [], expenses: [], fuel: [], odo: { start:'' },
+  reportOptions: { includeJourney: false },
+  standingCharges: [ { id:'home_use', label:'Home Use', amount:18.00, enabled:true } ]
+};
+let storageKey = null;
+let storageAvailable = true;
+let storageMode = 'none'; // 'claude' | 'local' | 'none'
+
+/* Storage adapter: prefers Claude's artifact storage (window.storage) when
+   running inside Claude, falls back to the browser's own localStorage when
+   this file is opened standalone (double-clicked, saved to desktop, etc.),
+   and only gives up if neither is available. */
+const storageAdapter = (function(){
+  const LOCAL_PREFIX = 'bdm_mileage_app::';
+
+  let localError = '';
+  let sessionError = '';
+
+  function claudeAvailable(){
+    return !!(window.storage && typeof window.storage.get === 'function');
+  }
+  function localAvailable(){
+    try{
+      const testKey = LOCAL_PREFIX + '__test__';
+      window.localStorage.setItem(testKey, '1');
+      const ok = window.localStorage.getItem(testKey) === '1';
+      window.localStorage.removeItem(testKey);
+      return ok;
+    }catch(e){
+      localError = e.name + ': ' + e.message;
+      try{
+        window.localStorage.removeItem(LOCAL_PREFIX + '__test__');
+        window.localStorage.setItem(LOCAL_PREFIX + '__test__', '1');
+        const ok = window.localStorage.getItem(LOCAL_PREFIX + '__test__') === '1';
+        window.localStorage.removeItem(LOCAL_PREFIX + '__test__');
+        if(ok){ localError = ''; return true; }
+      }catch(e2){ localError = e2.name + ': ' + e2.message; }
+      return false;
+    }
+  }
+  function sessionAvailable(){
+    try{
+      const testKey = LOCAL_PREFIX + '__test__';
+      window.sessionStorage.setItem(testKey, '1');
+      const ok = window.sessionStorage.getItem(testKey) === '1';
+      window.sessionStorage.removeItem(testKey);
+      return ok;
+    }catch(e){ sessionError = e.name + ': ' + e.message; return false; }
+  }
+
+  async function get(key){
+    if(storageMode==='claude'){
+      return await window.storage.get(key);
+    }
+    if(storageMode==='local' || storageMode==='session'){
+      const raw = getStore().getItem(LOCAL_PREFIX + key);
+      if(raw===null) throw new Error('not found');
+      return { key, value: raw };
+    }
+    throw new Error('no storage available');
+  }
+  async function set(key, value){
+    if(storageMode==='claude'){
+      return await window.storage.set(key, value);
+    }
+    if(storageMode==='local' || storageMode==='session'){
+      getStore().setItem(LOCAL_PREFIX + key, value);
+      return { key, value };
+    }
+    throw new Error('no storage available');
+  }
+  async function del(key){
+    if(storageMode==='claude'){
+      return await window.storage.delete(key);
+    }
+    if(storageMode==='local' || storageMode==='session'){
+      if(getStore().getItem(LOCAL_PREFIX + key)===null) throw new Error('not found');
+      getStore().removeItem(LOCAL_PREFIX + key);
+      return { key, deleted:true };
+    }
+    throw new Error('no storage available');
+  }
+  async function list(prefix){
+    if(storageMode==='claude'){
+      const res = await window.storage.list(prefix);
+      return res && res.keys ? res.keys : [];
+    }
+    if(storageMode==='local' || storageMode==='session'){
+      const store = getStore();
+      const keys = [];
+      for(let i=0; i<store.length; i++){
+        const fullKey = store.key(i);
+        if(fullKey && fullKey.startsWith(LOCAL_PREFIX)){
+          const bare = fullKey.slice(LOCAL_PREFIX.length);
+          if(!prefix || bare.startsWith(prefix)) keys.push(bare);
+        }
+      }
+      return keys;
+    }
+    return [];
+  }
+
+  function detect(){
+    if(claudeAvailable()){ storageMode = 'claude'; }
+    else if(localAvailable()){ storageMode = 'local'; }
+    else if(sessionAvailable()){ storageMode = 'session'; }
+    else { storageMode = 'none'; }
+    return storageMode;
+  }
+
+  function getStore(){
+    return storageMode === 'session' ? window.sessionStorage : window.localStorage;
+  }
+
+  return { get, set, delete: del, list, detect };
+})();
+
+function monthKey(){
+  return (state.meta.name || 'unnamed').trim().toLowerCase().replace(/\s+/g,'_') + ':' + state.meta.month + '_' + state.meta.year;
+}
+
+function forceUpper(el){
+  const start = el.selectionStart, end = el.selectionEnd;
+  el.value = el.value.toUpperCase();
+  try{ el.setSelectionRange(start, end); }catch(e){}
+}
+
+/* ---------------- Receipt photo handling ---------------- */
+let pendingReceipt = { e: null, f: null };
+
+function compressImage(file, maxDim, quality){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = (ev)=>{
+      const img = new Image();
+      img.onload = ()=>{
+        let w = img.width, h = img.height;
+        if(w > h && w > maxDim){ h = Math.round(h * (maxDim / w)); w = maxDim; }
+        else if(h > maxDim){ w = Math.round(w * (maxDim / h)); h = maxDim; }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = ()=>reject(new Error('Could not read image'));
+      img.src = ev.target.result;
+    };
+    reader.onerror = ()=>reject(new Error('Could not read file'));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function handleReceiptFile(input, prefix){
+  const file = input.files && input.files[0];
+  input.value = '';
+  if(!file) return;
+  if(!file.type.startsWith('image/')){ showToast('Please choose an image file'); return; }
+  showToast('Processing photo…');
+  try{
+    const dataUrl = await compressImage(file, 1000, 0.6);
+    pendingReceipt[prefix] = dataUrl;
+    showReceiptPreview(prefix, dataUrl);
+    showToast('Receipt attached');
+  }catch(err){
+    console.error('Receipt error', err);
+    showToast('Could not process that photo');
+  }
+}
+
+function showReceiptPreview(prefix, dataUrl){
+  document.getElementById(prefix + '_receipt_buttons').style.display = 'none';
+  document.getElementById(prefix + '_receipt_preview').style.display = 'flex';
+  document.getElementById(prefix + '_receipt_img').src = dataUrl;
+}
+
+function removeReceipt(prefix){
+  pendingReceipt[prefix] = null;
+  document.getElementById(prefix + '_receipt_buttons').style.display = 'flex';
+  document.getElementById(prefix + '_receipt_preview').style.display = 'none';
+  document.getElementById(prefix + '_receipt_img').src = '';
+}
+
+function resetReceiptWidget(prefix){
+  pendingReceipt[prefix] = null;
+  document.getElementById(prefix + '_receipt_buttons').style.display = 'flex';
+  document.getElementById(prefix + '_receipt_preview').style.display = 'none';
+  document.getElementById(prefix + '_receipt_img').src = '';
+}
+
+function loadReceiptIntoWidget(prefix, dataUrl){
+  if(dataUrl){
+    pendingReceipt[prefix] = dataUrl;
+    showReceiptPreview(prefix, dataUrl);
+  } else {
+    resetReceiptWidget(prefix);
+  }
+}
+
+function openLightbox(dataUrl){
+  document.getElementById('receiptLightboxImg').src = dataUrl;
+  document.getElementById('receiptLightbox').classList.add('show');
+}
+function closeLightbox(){
+  document.getElementById('receiptLightbox').classList.remove('show');
+}
+
+function applyStateDefaults(){
+  if(!state.meta) state.meta = {};
+  if(state.meta.fuelType===undefined) state.meta.fuelType = 'Petrol';
+  if(!state.odo) state.odo = { start:'' };
+  if(!state.reportOptions) state.reportOptions = { includeJourney:false };
+  if(!Array.isArray(state.standingCharges)){
+    state.standingCharges = [ { id:'home_use', label:'Home Use', amount:18.00, enabled:true } ];
+  }
+  if(!Array.isArray(state.mileage)) state.mileage = [];
+  if(!Array.isArray(state.expenses)) state.expenses = [];
+  if(!Array.isArray(state.fuel)) state.fuel = [];
+}
+
+async function loadState(){
+  const mode = storageAdapter.detect();
+  if(mode==='none'){
+    storageAvailable = false;
+    showStorageBanner();
+    renderMetaInputs();
+    renderAll();
+    openMetaModal(); // prompt setup even without storage
+    return;
+  }
+  if(mode==='local') showLocalModeBanner();
+  if(mode==='session') showSessionModeBanner();
+  let foundData = false;
+  try{
+    const idxRes = await storageAdapter.get('bdm_active_key');
+    const lastKey = idxRes ? idxRes.value : null;
+    if(lastKey){
+      try{
+        const res = await storageAdapter.get(lastKey);
+        if(res && res.value){
+          state = JSON.parse(res.value);
+          applyStateDefaults();
+          storageKey = lastKey;
+          await hydrateReceipts();
+          foundData = true;
+        }
+      }catch(e){ /* key not found, ignore */ }
+    }
+  }catch(e){
+    console.error('Load error', e);
+    storageAvailable = false;
+    showStorageBanner();
+  }
+  renderMetaInputs();
+  renderAll();
+  // First run — no saved data found and no name set. Open setup modal automatically.
+  if(!foundData && !state.meta.name){
+    setTimeout(()=>openMetaModal(), 300);
+  }
+}
+
+async function hydrateReceipts(){
+  const all = [...state.expenses, ...state.fuel];
+  for(const entry of all){
+    if(entry.hasReceipt && !entry.receipt){
+      try{
+        const res = await storageAdapter.get('receipt:' + entry.id);
+        if(res && res.value) entry.receipt = res.value;
+      }catch(e){ /* receipt missing or unavailable, leave blank */ }
+    }
+  }
+}
+
+function showStorageBanner(){
+  const b = document.getElementById('storageBanner');
+  const t = document.getElementById('storageBannerText');
+  const diag = `localStorage: ${localError||'blocked (no error thrown)'} | sessionStorage: ${sessionError||'blocked (no error thrown)'}`;
+  if(t) t.textContent = `Storage unavailable — entries won't be saved. Tap × to dismiss. [Diag: ${diag}]`;
+  if(b) b.style.display = 'block';
+}
+
+function showLocalModeBanner(){
+  // Quiet — saving is working fine. Only shown when user actually saves something.
+  // Don't show on every open.
+}
+
+function showSessionModeBanner(){
+  const b = document.getElementById('storageBanner');
+  const t = document.getElementById('storageBannerText');
+  const diag = `localStorage: ${localError||'blocked (no error thrown)'}`;
+  if(t) t.textContent = `Session storage only — data won't survive closing the app. [Diag: ${diag}]`;
+  if(b) b.style.display = 'block';
+}
+
+async function persist(){
+  if(!storageAvailable) return;
+  // Never save if no BDM name has been entered yet — prevents blank state
+  // from overwriting real data on a fresh device open before setup is done.
+  if(!state.meta.name || !state.meta.name.trim()) return;
+  storageKey = 'bdmlog:' + monthKey();
+  try{
+    const slim = JSON.parse(JSON.stringify(state));
+    slim.expenses.forEach(e=>{ e.hasReceipt = !!e.receipt; delete e.receipt; });
+    slim.fuel.forEach(e=>{ e.hasReceipt = !!e.receipt; delete e.receipt; });
+    await storageAdapter.set(storageKey, JSON.stringify(slim));
+    await storageAdapter.set('bdm_active_key', storageKey);
+  }catch(e){ console.error('Save error', e); showToast('Save failed — try again'); }
+}
+
+async function persistReceipt(entryId, dataUrl){
+  if(!storageAvailable) return;
+  try{
+    if(dataUrl){
+      await storageAdapter.set('receipt:' + entryId, dataUrl);
+    } else {
+      try{ await storageAdapter.delete('receipt:' + entryId); }catch(e){ /* nothing to delete */ }
+    }
+  }catch(e){ console.error('Receipt save error', e); showToast('Receipt could not be saved'); }
+}
+
+/* ---------------- Tabs ---------------- */
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===name));
+  document.querySelectorAll('.section').forEach(s=>s.classList.toggle('active', s.dataset.section===name));
+  if(name==='summary') renderSummary();
+}
+
+/* ---------------- Meta ---------------- */
+function openMetaModal(){
+  document.getElementById('metaModalBackdrop').classList.add('show');
+}
+function closeModal(id){ document.getElementById(id).classList.remove('show'); }
+
+function renderMetaInputs(){
+  document.getElementById('in_name').value = state.meta.name;
+  document.getElementById('in_market').value = state.meta.market;
+  document.getElementById('in_month').value = state.meta.month;
+  document.getElementById('in_year').value = state.meta.year;
+  document.getElementById('in_reg').value = state.meta.reg;
+  document.getElementById('in_engine').value = state.meta.engine;
+  document.getElementById('in_fuel_type').value = state.meta.fuelType || 'Petrol';
+  document.getElementById('in_odo_start').value = state.odo.start || '';
+  updateOdoEndPreview();
+  renderMetaDisplay();
+}
+function renderMetaDisplay(){
+  document.getElementById('metaName').textContent = state.meta.name || '—';
+  document.getElementById('metaMarket').textContent = state.meta.market || '—';
+  document.getElementById('metaReg').textContent = state.meta.reg || '—';
+  document.getElementById('metaEngine').textContent = state.meta.engine || '—';
+  document.getElementById('monthYearTag').textContent = (state.meta.month||'—') + ' ' + (state.meta.year||'');
+}
+
+function calculatedOdoEnd(){
+  const start = parseFloat(state.odo.start);
+  if(isNaN(start)) return null;
+  return start + totals().totalMi;
+}
+
+function updateOdoEndPreview(){
+  // Uses the in-modal start value live (may not be saved yet) plus the currently logged total mileage.
+  const startVal = parseFloat(document.getElementById('in_odo_start').value);
+  const display = document.getElementById('in_odo_end_display');
+  if(isNaN(startVal)){ display.value = '—'; return; }
+  display.value = fmtMi(startVal + totals().totalMi);
+}
+
+async function saveMeta(){
+  const oldKey = storageKey;
+  state.meta.name = document.getElementById('in_name').value.trim();
+  state.meta.market = document.getElementById('in_market').value.trim();
+  state.meta.month = document.getElementById('in_month').value;
+  state.meta.year = parseInt(document.getElementById('in_year').value) || state.meta.year;
+  state.meta.reg = document.getElementById('in_reg').value.trim().toUpperCase();
+  state.meta.engine = document.getElementById('in_engine').value.trim();
+  state.meta.fuelType = document.getElementById('in_fuel_type').value;
+  state.odo.start = document.getElementById('in_odo_start').value;
+
+  // If month/year/name changed, this is effectively a new logbook period.
+  // Try to load existing data for that period if it exists, else start fresh.
+  const newKey = 'bdmlog:' + monthKey();
+  if(newKey !== oldKey && storageAvailable){
+    try{
+      const res = await storageAdapter.get(newKey);
+      if(res && res.value){
+        const loadedMeta = state.meta;
+        const loadedOdo = state.odo;
+        const loadedStandingCharges = state.standingCharges;
+        state = JSON.parse(res.value);
+        applyStateDefaults();
+        state.meta = loadedMeta;
+        state.odo = loadedOdo;
+        state.standingCharges = loadedStandingCharges;
+        await hydrateReceipts();
+      } else {
+        state.mileage = []; state.expenses = []; state.fuel = [];
+      }
+    }catch(e){
+      state.mileage = []; state.expenses = []; state.fuel = [];
+    }
+  } else if(newKey !== oldKey){
+    state.mileage = []; state.expenses = []; state.fuel = [];
+  }
+
+  renderMetaDisplay();
+  closeModal('metaModalBackdrop');
+  await persist();
+  renderAll();
+  showToast('Header details saved');
+}
+
+/* ---------------- Mileage ---------------- */
+function setOffice(val){
+  document.getElementById('m_office_y').classList.toggle('sel', val==='Y');
+  document.getElementById('m_office_n').classList.toggle('sel', val==='N');
+  document.getElementById('m_office_y').dataset.val = val;
+}
+document.addEventListener('DOMContentLoaded', ()=>{ document.getElementById('m_office_n').dataset.val='N'; });
+
+function fmtMi(n){ return (Math.round(n*10)/10).toFixed(1); }
+function fmtMoney(n){ return '£' + (Math.round(n*100)/100).toFixed(2); }
+function fmtDate(iso){
+  if(!iso) return '—';
+  const d = new Date(iso+'T00:00:00');
+  return d.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+}
+
+async function saveMileage(){
+  const date = document.getElementById('m_date').value;
+  const biz = parseFloat(document.getElementById('m_biz').value) || 0;
+  const pers = parseFloat(document.getElementById('m_pers').value) || 0;
+  if(!date){ showToast('Add a date first'); return; }
+  if(biz===0 && pers===0){ showToast('Add business or personal miles'); return; }
+  const officeSel = document.getElementById('m_office_y').classList.contains('sel') ? 'Y' : 'N';
+  const editId = document.getElementById('m_edit_id').value;
+
+  const record = {
+    date, office: officeSel,
+    start: document.getElementById('m_start').value.trim().toUpperCase(),
+    end: document.getElementById('m_end').value.trim().toUpperCase(),
+    postcodes: document.getElementById('m_postcodes').value.trim().toUpperCase(),
+    biz, pers,
+    notes: document.getElementById('m_notes').value.trim()
+  };
+
+  if(editId){
+    const idx = state.mileage.findIndex(e=>e.id===parseInt(editId));
+    if(idx>-1){ record.id = state.mileage[idx].id; state.mileage[idx] = record; }
+  } else {
+    record.id = Date.now();
+    state.mileage.push(record);
+  }
+  state.mileage.sort((a,b)=> a.date.localeCompare(b.date));
+  cancelMileageEdit();
+  await persist();
+  renderAll();
+  showToast(editId ? 'Mileage entry updated' : 'Mileage entry added');
+}
+
+function editMileage(id){
+  const e = state.mileage.find(x=>x.id===id);
+  if(!e) return;
+  document.getElementById('m_edit_id').value = e.id;
+  document.getElementById('m_date').value = e.date;
+  setOffice(e.office);
+  document.getElementById('m_start').value = e.start;
+  document.getElementById('m_end').value = e.end;
+  document.getElementById('m_postcodes').value = e.postcodes;
+  document.getElementById('m_biz').value = e.biz || '';
+  document.getElementById('m_pers').value = e.pers || '';
+  document.getElementById('m_notes').value = e.notes;
+  document.getElementById('mileageFormTitle').textContent = 'Edit daily entry';
+  document.getElementById('m_submit_btn').textContent = 'Save changes';
+  document.getElementById('m_cancel_btn').style.display = '';
+  switchTab('mileage');
+  document.querySelector('.section[data-section="mileage"] .card').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function cancelMileageEdit(){
+  document.getElementById('m_edit_id').value = '';
+  ['m_date','m_start','m_end','m_postcodes','m_biz','m_pers','m_notes'].forEach(id=>document.getElementById(id).value='');
+  setOffice('N');
+  document.getElementById('mileageFormTitle').textContent = 'Add daily entry';
+  document.getElementById('m_submit_btn').textContent = 'Add entry';
+  document.getElementById('m_cancel_btn').style.display = 'none';
+}
+
+async function deleteMileage(id){
+  state.mileage = state.mileage.filter(e=>e.id!==id);
+  if(document.getElementById('m_edit_id').value === String(id)) cancelMileageEdit();
+  await persist();
+  renderAll();
+}
+
+function renderMileageList(){
+  const list = document.getElementById('mileageList');
+  document.getElementById('mileageCount').textContent = state.mileage.length ? `(${state.mileage.length})` : '';
+  if(state.mileage.length===0){
+    list.innerHTML = `<div class="empty-state"><span class="big">⛽</span>No mileage logged yet this month.</div>`;
+    return;
+  }
+  list.innerHTML = state.mileage.map(e=>{
+    const total = e.biz + e.pers;
+    const tag = e.office==='Y' ? `<span class="entry-tag office">Office</span>` : `<span class="entry-tag">On road</span>`;
+    const route = [e.start, e.postcodes, e.end].filter(Boolean).join(' → ');
+    return `<div class="entry">
+      <button class="entry-del" onclick="deleteMileage(${e.id})">&times;</button>
+      <button class="entry-edit" onclick="editMileage(${e.id})">Edit</button>
+      <div class="entry-top"><span class="entry-date">${fmtDate(e.date)}</span>${tag}</div>
+      ${route ? `<div class="entry-detail">${route}</div>` : ''}
+      ${e.notes ? `<div class="entry-detail">${e.notes}</div>` : ''}
+      <div class="entry-nums">
+        <span>Biz <b>${fmtMi(e.biz)}</b></span>
+        <span>Pers <b>${fmtMi(e.pers)}</b></span>
+        <span>Total <b>${fmtMi(total)}</b></span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderOdoCheck(){
+  const startV = parseFloat(state.odo.start);
+  const startDisplay = document.getElementById('odoStartDisplay');
+  const endDisplay = document.getElementById('odoEndDisplay');
+  const note = document.getElementById('odoCheck');
+  if(isNaN(startV)){
+    startDisplay.textContent = '—';
+    endDisplay.textContent = '—';
+    note.innerHTML = `<span style="color:var(--slate);">Set the start-of-month odometer reading in header details.</span>`;
+    return;
+  }
+  const end = calculatedOdoEnd();
+  startDisplay.textContent = fmtMi(startV);
+  endDisplay.textContent = fmtMi(end);
+  note.innerHTML = `<span style="color:var(--good);">End of month updates automatically as you log mileage.</span>`;
+}
+
+/* ---------------- Standing charges (recurring monthly allowances) ---------------- */
+function standingChargesTotal(){
+  return (state.standingCharges || []).filter(c=>c.enabled).reduce((s,c)=>s+c.amount, 0);
+}
+
+function renderStandingCharges(){
+  const card = document.getElementById('standingChargesCard');
+  if(!card) return;
+  const charges = state.standingCharges || [];
+  if(charges.length===0){
+    card.innerHTML = `<div class="empty-state" style="padding:14px 6px;">No ongoing expenses set up.</div>`;
+    return;
+  }
+  card.innerHTML = charges.map((c, idx)=>`
+    <div class="field" style="margin-bottom:${idx===charges.length-1?'0':'14px'};">
+      <label>${c.label} — applied automatically every month</label>
+      <div class="row2">
+        <input type="text" value="${c.label}" oninput="updateStandingCharge(${idx},'label',this.value)" placeholder="Label">
+        <input type="number" step="0.01" min="0" value="${c.amount.toFixed(2)}" oninput="updateStandingCharge(${idx},'amount',this.value)" placeholder="0.00">
+      </div>
+      <label style="display:flex; align-items:center; gap:6px; margin-top:8px; font-weight:600; cursor:pointer;">
+        <input type="checkbox" ${c.enabled?'checked':''} onchange="updateStandingCharge(${idx},'enabled',this.checked)" style="width:auto; margin:0;">
+        Include in this month's report
+      </label>
+    </div>
+  `).join('');
+}
+
+async function updateStandingCharge(idx, field, value){
+  const c = state.standingCharges[idx];
+  if(!c) return;
+  if(field==='amount'){ c.amount = parseFloat(value) || 0; }
+  else if(field==='enabled'){ c.enabled = !!value; }
+  else { c[field] = value; }
+  await persist();
+  renderDock();
+  renderSummary();
+}
+
+/* ---------------- Expenses ---------------- */
+async function saveExpense(){
+  const date = document.getElementById('e_date').value;
+  const total = parseFloat(document.getElementById('e_total').value) || 0;
+  if(!date){ showToast('Add a date first'); return; }
+  if(total<=0){ showToast('Enter an expense amount'); return; }
+  const editId = document.getElementById('e_edit_id').value;
+  const record = {
+    date, notes: document.getElementById('e_notes').value.trim(), total,
+    receipt: pendingReceipt.e
+  };
+
+  if(editId){
+    const idx = state.expenses.findIndex(e=>e.id===parseInt(editId));
+    if(idx>-1){ record.id = state.expenses[idx].id; state.expenses[idx] = record; }
+  } else {
+    record.id = Date.now();
+    state.expenses.push(record);
+  }
+  state.expenses.sort((a,b)=> a.date.localeCompare(b.date));
+  cancelExpenseEdit();
+  await persist();
+  await persistReceipt(record.id, record.receipt);
+  renderAll();
+  showToast(editId ? 'Expense updated' : 'Expense added');
+}
+
+function editExpense(id){
+  const e = state.expenses.find(x=>x.id===id);
+  if(!e) return;
+  document.getElementById('e_edit_id').value = e.id;
+  document.getElementById('e_date').value = e.date;
+  document.getElementById('e_notes').value = e.notes;
+  document.getElementById('e_total').value = e.total;
+  loadReceiptIntoWidget('e', e.receipt);
+  document.getElementById('expenseFormTitle').textContent = 'Edit expense';
+  document.getElementById('e_submit_btn').textContent = 'Save changes';
+  document.getElementById('e_cancel_btn').style.display = '';
+  switchTab('expenses');
+  document.querySelector('.section[data-section="expenses"] .card').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function cancelExpenseEdit(){
+  document.getElementById('e_edit_id').value = '';
+  ['e_date','e_notes','e_total'].forEach(id=>document.getElementById(id).value='');
+  resetReceiptWidget('e');
+  document.getElementById('expenseFormTitle').textContent = 'Add expense';
+  document.getElementById('e_submit_btn').textContent = 'Add expense';
+  document.getElementById('e_cancel_btn').style.display = 'none';
+}
+
+async function deleteExpense(id){
+  state.expenses = state.expenses.filter(e=>e.id!==id);
+  if(document.getElementById('e_edit_id').value === String(id)) cancelExpenseEdit();
+  await persist();
+  await persistReceipt(id, null);
+  renderAll();
+}
+function renderExpenseList(){
+  const list = document.getElementById('expenseList');
+  document.getElementById('expenseCount').textContent = state.expenses.length ? `(${state.expenses.length})` : '';
+  if(state.expenses.length===0){
+    list.innerHTML = `<div class="empty-state"><span class="big">🧾</span>No expenses logged yet this month.</div>`;
+    return;
+  }
+  let running = 0;
+  list.innerHTML = state.expenses.map(e=>{
+    running += e.total;
+    const thumb = e.receipt ? `<img class="receipt-thumb" src="${e.receipt}" onclick="openLightbox('${e.receipt}')" alt="Receipt">` : '';
+    return `<div class="entry">
+      <button class="entry-del" onclick="deleteExpense(${e.id})">&times;</button>
+      <button class="entry-edit" onclick="editExpense(${e.id})">Edit</button>
+      <div class="entry-top"><span class="entry-date">${fmtDate(e.date)}</span><span class="entry-tag">${fmtMoney(e.total)}</span></div>
+      ${e.notes ? `<div class="entry-detail">${e.notes}</div>` : ''}
+      <div class="entry-nums"><span>Running total <b>${fmtMoney(running)}</b></span>${thumb}</div>
+    </div>`;
+  }).join('');
+}
+
+/* ---------------- Fuel ---------------- */
+async function saveFuel(){
+  const date = document.getElementById('f_date').value;
+  const litres = parseFloat(document.getElementById('f_litres').value) || 0;
+  const price = parseFloat(document.getElementById('f_price').value) || 0;
+  if(!date){ showToast('Add a date first'); return; }
+  if(litres<=0 || price<=0){ showToast('Enter litres and price'); return; }
+  const editId = document.getElementById('f_edit_id').value;
+  const record = {
+    date, invoice: document.getElementById('f_invoice').value.trim(), litres, price,
+    receipt: pendingReceipt.f
+  };
+
+  if(editId){
+    const idx = state.fuel.findIndex(e=>e.id===parseInt(editId));
+    if(idx>-1){ record.id = state.fuel[idx].id; state.fuel[idx] = record; }
+  } else {
+    record.id = Date.now();
+    state.fuel.push(record);
+  }
+  state.fuel.sort((a,b)=> a.date.localeCompare(b.date));
+  cancelFuelEdit();
+  await persist();
+  await persistReceipt(record.id, record.receipt);
+  renderAll();
+  showToast(editId ? 'Fuel entry updated' : 'Fuel entry added');
+}
+
+function editFuel(id){
+  const e = state.fuel.find(x=>x.id===id);
+  if(!e) return;
+  document.getElementById('f_edit_id').value = e.id;
+  document.getElementById('f_date').value = e.date;
+  document.getElementById('f_invoice').value = e.invoice;
+  document.getElementById('f_litres').value = e.litres;
+  document.getElementById('f_price').value = e.price;
+  loadReceiptIntoWidget('f', e.receipt);
+  document.getElementById('fuelFormTitle').textContent = 'Edit fuel purchase';
+  document.getElementById('f_submit_btn').textContent = 'Save changes';
+  document.getElementById('f_cancel_btn').style.display = '';
+  switchTab('fuel');
+  document.querySelector('.section[data-section="fuel"] .card').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function cancelFuelEdit(){
+  document.getElementById('f_edit_id').value = '';
+  ['f_date','f_invoice','f_litres','f_price'].forEach(id=>document.getElementById(id).value='');
+  resetReceiptWidget('f');
+  document.getElementById('fuelFormTitle').textContent = 'Add fuel purchase';
+  document.getElementById('f_submit_btn').textContent = 'Add fuel entry';
+  document.getElementById('f_cancel_btn').style.display = 'none';
+}
+
+async function deleteFuel(id){
+  state.fuel = state.fuel.filter(e=>e.id!==id);
+  if(document.getElementById('f_edit_id').value === String(id)) cancelFuelEdit();
+  await persist();
+  await persistReceipt(id, null);
+  renderAll();
+}
+function renderFuelList(){
+  const list = document.getElementById('fuelList');
+  document.getElementById('fuelCount').textContent = state.fuel.length ? `(${state.fuel.length})` : '';
+  if(state.fuel.length===0){
+    list.innerHTML = `<div class="empty-state"><span class="big">🛢️</span>No fuel purchases logged yet this month.</div>`;
+    return;
+  }
+  list.innerHTML = state.fuel.map(e=>{
+    const cost = e.litres * e.price;
+    const thumb = e.receipt ? `<img class="receipt-thumb" src="${e.receipt}" onclick="openLightbox('${e.receipt}')" alt="Receipt">` : '';
+    return `<div class="entry">
+      <button class="entry-del" onclick="deleteFuel(${e.id})">&times;</button>
+      <button class="entry-edit" onclick="editFuel(${e.id})">Edit</button>
+      <div class="entry-top"><span class="entry-date">${fmtDate(e.date)}</span><span class="entry-tag">${fmtMoney(cost)}</span></div>
+      ${e.invoice ? `<div class="entry-detail">Invoice ${e.invoice}</div>` : ''}
+      <div class="entry-nums">
+        <span>Litres <b>${e.litres.toFixed(2)}</b></span>
+        <span>£/L <b>${e.price.toFixed(3)}</b></span>
+        ${thumb}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ---------------- Totals ---------------- */
+function totals(){
+  const biz = state.mileage.reduce((s,e)=>s+e.biz,0);
+  const pers = state.mileage.reduce((s,e)=>s+e.pers,0);
+  const totalMi = biz+pers;
+  const loggedExpTotal = state.expenses.reduce((s,e)=>s+e.total,0);
+  const standingTotal = standingChargesTotal();
+  const expTotal = loggedExpTotal + standingTotal;
+  const fuelLitres = state.fuel.reduce((s,e)=>s+e.litres,0);
+  const fuelCost = state.fuel.reduce((s,e)=>s+e.litres*e.price,0);
+  const avgPrice = fuelLitres>0 ? fuelCost/fuelLitres : 0;
+  const grandTotal = expTotal + fuelCost;
+  return {biz, pers, totalMi, loggedExpTotal, standingTotal, expTotal, fuelLitres, fuelCost, avgPrice, grandTotal};
+}
+
+function renderDock(){
+  const t = totals();
+  document.getElementById('dockBiz').textContent = fmtMi(t.biz);
+  document.getElementById('dockPers').textContent = fmtMi(t.pers);
+  document.getElementById('dockExp').textContent = fmtMoney(t.expTotal);
+}
+
+function buildFuelTable(){
+  if(state.fuel.length===0){
+    return `<div class="empty-state" style="padding:14px 6px;">No fuel purchases logged this month.</div>`;
+  }
+  const rows = state.fuel.map(e=>{
+    const cost = e.litres * e.price;
+    return `<tr>
+      <td>${fmtDate(e.date)}</td>
+      <td>${e.invoice || '—'}</td>
+      <td style="text-align:right;">${e.litres.toFixed(2)}</td>
+      <td style="text-align:right;">£${e.price.toFixed(3)}</td>
+      <td style="text-align:right; font-weight:700;">${fmtMoney(cost)}</td>
+    </tr>`;
+  }).join('');
+  return `<table class="daily-log-table" style="margin-bottom:8px;">
+    <thead><tr>
+      <th>Date</th><th>Invoice no.</th><th style="text-align:right;">Litres</th><th style="text-align:right;">£/litre</th><th style="text-align:right;">Cost</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+function buildExpensesTable(){
+  const standing = (state.standingCharges || []).filter(c=>c.enabled);
+  if(state.expenses.length===0 && standing.length===0){
+    return `<div class="empty-state" style="padding:14px 6px;">No expenses logged this month.</div>`;
+  }
+  const loggedRows = state.expenses.map(e=>`<tr>
+      <td>${fmtDate(e.date)}</td>
+      <td>${e.notes || '—'}</td>
+      <td>Logged</td>
+      <td style="text-align:right; font-weight:700;">${fmtMoney(e.total)}</td>
+    </tr>`).join('');
+  const standingRows = standing.map(c=>`<tr>
+      <td>Every month</td>
+      <td>${c.label}</td>
+      <td>Ongoing</td>
+      <td style="text-align:right; font-weight:700;">${fmtMoney(c.amount)}</td>
+    </tr>`).join('');
+  return `<table class="daily-log-table" style="margin-bottom:8px;">
+    <thead><tr>
+      <th>Date</th><th>Notes</th><th>Type</th><th style="text-align:right;">Amount</th>
+    </tr></thead>
+    <tbody>${loggedRows}${standingRows}</tbody>
+  </table>`;
+}
+
+function buildDailyLogTable(){
+  if(state.mileage.length===0){
+    return `<div class="empty-state" style="padding:18px 10px;">No daily entries logged yet this month.</div>`;
+  }
+  const includeJourney = !!(state.reportOptions && state.reportOptions.includeJourney);
+  const rows = state.mileage.map(e=>{
+    const journeyCells = includeJourney
+      ? `<td>${e.start || '—'}</td><td>${e.end || '—'}</td>`
+      : '';
+    return `<tr>
+      <td>${fmtDate(e.date)}</td>
+      <td style="text-align:center;">${e.office}</td>
+      <td>${e.postcodes || '—'}</td>
+      ${journeyCells}
+      <td style="text-align:right;">${fmtMi(e.biz)}</td>
+      <td style="text-align:right;">${fmtMi(e.pers)}</td>
+      <td style="text-align:right; font-weight:700;">${fmtMi(e.biz+e.pers)}</td>
+    </tr>`;
+  }).join('');
+  const journeyHeaders = includeJourney ? `<th>Journey start</th><th>Journey end</th>` : '';
+  return `<table class="daily-log-table">
+    <thead><tr>
+      <th>Date</th><th>Office</th><th>Postcodes visited</th>${journeyHeaders}<th style="text-align:right;">Biz mi</th><th style="text-align:right;">Pers mi</th><th style="text-align:right;">Total mi</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+async function toggleIncludeJourney(checked){
+  state.reportOptions.includeJourney = checked;
+  await persist();
+  renderSummary();
+}
+
+function renderSummary(){
+  const t = totals();
+  const startV = parseFloat(state.odo.start);
+  const hasOdo = !isNaN(startV);
+  const endV = hasOdo ? calculatedOdoEnd() : null;
+  const includeJourney = !!(state.reportOptions && state.reportOptions.includeJourney);
+
+  document.getElementById('summaryContent').innerHTML = `
+    <div class="report-block">
+      <div class="report-head">Header</div>
+      <div class="report-row"><span>BDM</span><span class="v">${state.meta.name||'—'}</span></div>
+      <div class="report-row"><span>Market</span><span class="v">${state.meta.market||'—'}</span></div>
+      <div class="report-row"><span>Period</span><span class="v">${state.meta.month} ${state.meta.year}</span></div>
+      <div class="report-row"><span>Registration</span><span class="v">${state.meta.reg||'—'}</span></div>
+      <div class="report-row"><span>Engine</span><span class="v">${state.meta.engine||'—'}</span></div>
+      <div class="report-row"><span>Fuel type</span><span class="v">${state.meta.fuelType||'—'}</span></div>
+    </div>
+    <div class="report-block">
+      <div class="report-head">Mileage</div>
+      <div class="report-row"><span>Odometer start</span><span class="v">${hasOdo?fmtMi(startV):'—'}</span></div>
+      <div class="report-row"><span>Odometer end</span><span class="v">${hasOdo?fmtMi(endV):'—'}</span></div>
+      <div class="report-row"><span>Business mileage</span><span class="v">${fmtMi(t.biz)}</span></div>
+      <div class="report-row"><span>Personal mileage</span><span class="v">${fmtMi(t.pers)}</span></div>
+      <div class="report-row total"><span>Total mileage</span><span class="v">${fmtMi(t.totalMi)}</span></div>
+    </div>
+    <div class="report-block">
+      <div class="report-head">Fuel</div>
+      ${buildFuelTable()}
+      <div class="report-row"><span>Total litres</span><span class="v">${t.fuelLitres.toFixed(2)}</span></div>
+      <div class="report-row"><span>Average price/litre</span><span class="v">${t.fuelLitres>0?'£'+t.avgPrice.toFixed(3):'—'}</span></div>
+      <div class="report-row total"><span>Total fuel cost</span><span class="v">${fmtMoney(t.fuelCost)}</span></div>
+    </div>
+    <div class="report-block">
+      <div class="report-head">Other expenses</div>
+      ${buildExpensesTable()}
+      ${t.standingTotal>0 ? `<div class="report-row"><span>Logged expenses</span><span class="v">${fmtMoney(t.loggedExpTotal)}</span></div>
+      <div class="report-row"><span>Ongoing expenses (standing charges)</span><span class="v">${fmtMoney(t.standingTotal)}</span></div>` : ''}
+      <div class="report-row total"><span>Total other expenses</span><span class="v">${fmtMoney(t.expTotal)}</span></div>
+    </div>
+    <div class="report-block">
+      <div class="report-head">Combined total</div>
+      <div class="report-row"><span>Fuel</span><span class="v">${fmtMoney(t.fuelCost)}</span></div>
+      <div class="report-row"><span>Other expenses</span><span class="v">${fmtMoney(t.expTotal)}</span></div>
+      <div class="report-row total"><span>TOTAL (fuel + other expenses)</span><span class="v">${fmtMoney(t.grandTotal)}</span></div>
+    </div>
+    <div class="report-block">
+      <div class="report-head" style="display:flex; justify-content:space-between; align-items:center; border-bottom:none; margin-bottom:4px;">
+        <span>Daily log</span>
+        <label style="display:flex; align-items:center; gap:6px; font-family:var(--sans); font-size:11.5px; color:var(--ink); text-transform:none; letter-spacing:0; font-weight:600; cursor:pointer;">
+          <input type="checkbox" id="includeJourneyCheckbox" ${includeJourney?'checked':''} onchange="toggleIncludeJourney(this.checked)" style="width:auto; margin:0;">
+          Include journey start/end
+        </label>
+      </div>
+      <div style="border-bottom:1px solid var(--line); margin-bottom:8px;"></div>
+      ${buildDailyLogTable()}
+    </div>
+  `;
+}
+
+function openReportModal(){
+  renderSummary();
+  document.getElementById('reportModalContent').innerHTML = document.getElementById('summaryContent').innerHTML;
+  document.getElementById('reportModalBackdrop').classList.add('show');
+}
+
+/* ---------------- Print ---------------- */
+function printReport(){
+  renderSummary();
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('print-active'));
+  document.querySelector('.section[data-section="summary"]').classList.add('print-active');
+  setTimeout(()=>{ window.print(); }, 50);
+}
+
+/* ---------------- Export ---------------- */
+function openExportModal(){
+  buildEmailPreview();
+  const all = [...state.expenses, ...state.fuel].filter(e=>e.receipt);
+  document.getElementById('receiptExportSub').textContent =
+    all.length ? `Download ${all.length} attached receipt${all.length===1?'':'s'} as image files` : 'No receipts attached this month';
+  document.getElementById('exportModalBackdrop').classList.add('show');
+}
+
+function handleRestoreFile(input){
+  const file = input.files && input.files[0];
+  input.value = '';
+  if(!file) return;
+
+  const reader = new FileReader();
+  reader.onload = async (ev)=>{
+    let backup;
+    try{
+      backup = JSON.parse(ev.target.result);
+    }catch(e){
+      showToast('That file doesn\'t look like a valid backup');
+      return;
+    }
+    if(!backup || !Array.isArray(backup.months) || backup.months.length===0){
+      showToast('No data found in that backup file');
+      return;
+    }
+    const count = backup.months.length;
+    const proceed = window.confirm(
+      `This backup contains ${count} month${count===1?'':'s'}. Restoring will add or overwrite matching months on this device. Continue?`
+    );
+    if(!proceed) return;
+    await restoreFromBackup(backup);
+  };
+  reader.onerror = ()=>{ showToast('Could not read that file'); };
+  reader.readAsText(file);
+}
+
+async function restoreFromBackup(backup){
+  if(!storageAvailable){
+    showToast('No storage available on this device to restore into');
+    return;
+  }
+  showToast('Restoring backup…');
+  let restoredCount = 0;
+  try{
+    for(const month of backup.months){
+      const monthData = month.data;
+      if(!monthData) continue;
+
+      // Pull receipts back out into their own keys, same shape persist() normally writes.
+      const slim = JSON.parse(JSON.stringify(monthData));
+      const all = [...(slim.expenses||[]), ...(slim.fuel||[])];
+      for(const entry of all){
+        if(entry.receipt){
+          await storageAdapter.set('receipt:' + entry.id, entry.receipt);
+          entry.hasReceipt = true;
+          delete entry.receipt;
+        }
+      }
+
+      const key = month.key || ('bdmlog:' + (slim.meta && slim.meta.name ? slim.meta.name.trim().toLowerCase().replace(/\s+/g,'_') : 'unnamed') + ':' + (slim.meta ? slim.meta.month+'_'+slim.meta.year : 'unknown'));
+      await storageAdapter.set(key, JSON.stringify(slim));
+      restoredCount++;
+    }
+
+    // If the currently active month was among those restored, reload it into view.
+    if(storageKey){
+      try{
+        const res = await storageAdapter.get(storageKey);
+        if(res && res.value){
+          state = JSON.parse(res.value);
+          applyStateDefaults();
+          await hydrateReceipts();
+        }
+      }catch(e){ /* current month wasn't in the backup, leave as-is */ }
+    }
+
+    closeModal('exportModalBackdrop');
+    renderMetaInputs();
+    renderAll();
+    showToast(`Restored ${restoredCount} month${restoredCount===1?'':'s'} — use header details to switch to a restored month`);
+  }catch(e){
+    console.error('Restore error', e);
+    showToast('Restore failed partway through — try again');
+  }
+}
+
+async function exportFullBackup(){
+  showToast('Preparing full backup…');
+  try{
+    await persist(); // make sure the currently open month is saved before bundling
+
+    const allKeys = await storageAdapter.list('bdmlog:');
+    const months = [];
+
+    for(const key of allKeys){
+      try{
+        const res = await storageAdapter.get(key);
+        if(!res || !res.value) continue;
+        const monthState = JSON.parse(res.value);
+
+        const all = [...(monthState.expenses||[]), ...(monthState.fuel||[])];
+        for(const entry of all){
+          if(entry.hasReceipt){
+            try{
+              const rRes = await storageAdapter.get('receipt:' + entry.id);
+              if(rRes && rRes.value) entry.receipt = rRes.value;
+            }catch(e){ /* receipt missing, skip */ }
+          }
+        }
+        months.push({ key, data: monthState });
+      }catch(e){ console.error('Skipping unreadable month', key, e); }
+    }
+
+    if(months.length===0){
+      showToast('Nothing to back up yet');
+      return;
+    }
+
+    const backup = {
+      backupCreated: new Date().toISOString(),
+      appVersion: 'mileage-log-v1',
+      monthsIncluded: months.length,
+      months
+    };
+
+    const json = JSON.stringify(backup, null, 2);
+    const blob = new Blob([json], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const datestamp = new Date().toISOString().slice(0,10);
+    const namePart = (state.meta.name || 'bdm').replace(/\s+/g,'_');
+    a.href = url;
+    a.download = `mileage_backup_${namePart}_${datestamp}.json`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showToast(`Backed up ${months.length} month${months.length===1?'':'s'} — save this file to Google Drive`);
+  }catch(e){
+    console.error('Backup error', e);
+    showToast('Backup failed — try again');
+  }
+}
+
+function exportReceipts(){
+  const tagged = [
+    ...state.expenses.map(e=>({...e, kind:'expense'})),
+    ...state.fuel.map(e=>({...e, kind:'fuel'}))
+  ].filter(e=>e.receipt);
+
+  if(tagged.length===0){ showToast('No receipts to export'); return; }
+
+  tagged.forEach((e, idx)=>{
+    setTimeout(()=>{
+      const a = document.createElement('a');
+      a.href = e.receipt;
+      const safeDate = (e.date || 'undated').replace(/[^0-9]/g,'');
+      a.download = `receipt_${e.kind}_${safeDate}_${idx+1}.jpg`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    }, idx * 250);
+  });
+  showToast(`Downloading ${tagged.length} receipt${tagged.length===1?'':'s'}`);
+}
+
+function csvEscape(v){
+  if(v===null||v===undefined) return '';
+  const s = String(v);
+  return /[",\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s;
+}
+
+function exportCSV(){
+  const t = totals();
+  const startV = parseFloat(state.odo.start);
+  const hasOdo = !isNaN(startV);
+  const endV = hasOdo ? calculatedOdoEnd() : null;
+  let rows = [];
+  rows.push(['BDM Mileage & Expenses Log']);
+  rows.push(['BDM', state.meta.name, 'Market', state.meta.market, 'Period', state.meta.month+' '+state.meta.year, 'Reg', state.meta.reg, 'Engine', state.meta.engine, 'Fuel Type', state.meta.fuelType]);
+  rows.push([]);
+  rows.push(['MILEAGE']);
+  rows.push(['Date','Office Y/N','Journey Start','Postcodes Visited','Journey End','Business Mileage','Personal Mileage','Total Mileage','Notes']);
+  state.mileage.forEach(e=>rows.push([e.date, e.office, e.start, e.postcodes, e.end, e.biz, e.pers, (e.biz+e.pers).toFixed(1), e.notes]));
+  rows.push(['','','','','','Odometer start', hasOdo?startV:'', 'Odometer end', hasOdo?endV.toFixed(1):'']);
+  rows.push(['','','','','','Total Business', t.biz.toFixed(1), 'Total Personal', t.pers.toFixed(1)]);
+  rows.push(['','','','','','TOTAL MILEAGE', t.totalMi.toFixed(1)]);
+  rows.push([]);
+  rows.push(['EXPENSES']);
+  rows.push(['BDM','Date','Notes','Type','Expense Total','Running Total','Receipt']);
+  let running=0;
+  state.expenses.forEach(e=>{ running+=e.total; rows.push([state.meta.name, e.date, e.notes, 'Logged', e.total.toFixed(2), running.toFixed(2), e.receipt ? 'Yes' : 'No']); });
+  (state.standingCharges||[]).filter(c=>c.enabled).forEach(c=>{ running+=c.amount; rows.push([state.meta.name, 'Every month', c.label, 'Ongoing', c.amount.toFixed(2), running.toFixed(2), '']); });
+  rows.push(['','','','TOTAL OTHER EXPENSES', t.expTotal.toFixed(2)]);
+  rows.push([]);
+  rows.push(['FUEL']);
+  rows.push(['Date','Invoice No.','Litres','Price per Litre','Total Cost','Receipt']);
+  state.fuel.forEach(e=>rows.push([e.date, e.invoice, e.litres.toFixed(2), e.price.toFixed(3), (e.litres*e.price).toFixed(2), e.receipt ? 'Yes' : 'No']));
+  rows.push(['','','TOTAL LITRES', t.fuelLitres.toFixed(2)]);
+  rows.push(['','','TOTAL FUEL COST', t.fuelCost.toFixed(2)]);
+  rows.push([]);
+  rows.push(['COMBINED TOTAL']);
+  rows.push(['Fuel', t.fuelCost.toFixed(2)]);
+  rows.push(['Other Expenses', t.expTotal.toFixed(2)]);
+  rows.push(['TOTAL (Fuel + Other Expenses)', t.grandTotal.toFixed(2)]);
+
+  const csv = rows.map(r=>r.map(csvEscape).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const fname = `mileage_log_${(state.meta.name||'bdm').replace(/\s+/g,'_')}_${state.meta.month}_${state.meta.year}.csv`;
+  a.href = url; a.download = fname;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('CSV downloaded');
+}
+
+function buildEmailPreview(){
+  const t = totals();
+  const startV = parseFloat(state.odo.start);
+  const hasOdo = !isNaN(startV);
+  const endV = hasOdo ? calculatedOdoEnd() : null;
+  const lines = [];
+  lines.push(`MILEAGE & EXPENSES SUMMARY`);
+  lines.push(`${state.meta.month} ${state.meta.year}`);
+  lines.push(``);
+  lines.push(`BDM: ${state.meta.name||'-'}`);
+  lines.push(`Market: ${state.meta.market||'-'}`);
+  lines.push(`Vehicle: ${state.meta.reg||'-'} (${state.meta.engine||'-'}, ${state.meta.fuelType||'-'})`);
+  lines.push(``);
+  lines.push(`MILEAGE`);
+  lines.push(`Odometer start: ${hasOdo?fmtMi(startV):'-'}`);
+  lines.push(`Odometer end: ${hasOdo?fmtMi(endV):'-'}`);
+  lines.push(`Business mileage: ${fmtMi(t.biz)} mi`);
+  lines.push(`Personal mileage: ${fmtMi(t.pers)} mi`);
+  lines.push(`Total mileage: ${fmtMi(t.totalMi)} mi`);
+  lines.push(``);
+  lines.push(`FUEL`);
+  if(state.fuel.length===0){
+    lines.push(`No fuel purchases logged.`);
+  } else {
+    state.fuel.forEach(e=>{
+      lines.push(`  ${fmtDate(e.date)} | ${e.invoice||'-'} | ${e.litres.toFixed(2)}L @ £${e.price.toFixed(3)} = ${fmtMoney(e.litres*e.price)}`);
+    });
+  }
+  lines.push(`Total litres: ${t.fuelLitres.toFixed(2)}`);
+  lines.push(`Average price/litre: ${t.fuelLitres>0?'£'+t.avgPrice.toFixed(3):'-'}`);
+  lines.push(`Total fuel cost: ${fmtMoney(t.fuelCost)}`);
+  lines.push(``);
+  lines.push(`OTHER EXPENSES`);
+  if(state.expenses.length===0 && t.standingTotal===0){
+    lines.push(`No expenses logged.`);
+  } else {
+    state.expenses.forEach(e=>{
+      lines.push(`  ${fmtDate(e.date)} | ${e.notes||'-'} = ${fmtMoney(e.total)}`);
+    });
+    (state.standingCharges||[]).filter(c=>c.enabled).forEach(c=>{
+      lines.push(`  Every month | ${c.label} (ongoing) = ${fmtMoney(c.amount)}`);
+    });
+  }
+  lines.push(`Total other expenses: ${fmtMoney(t.expTotal)}`);
+  lines.push(``);
+  lines.push(`COMBINED TOTAL`);
+  lines.push(`Fuel: ${fmtMoney(t.fuelCost)}`);
+  lines.push(`Other expenses: ${fmtMoney(t.expTotal)}`);
+  lines.push(`TOTAL: ${fmtMoney(t.grandTotal)}`);
+  const receiptCount = [...state.expenses, ...state.fuel].filter(e=>e.receipt).length;
+  if(receiptCount>0){
+    lines.push(``);
+    lines.push(`Receipts: ${receiptCount} attached — exported separately as image files.`);
+  }
+  document.getElementById('emailPreview').value = lines.join('\n');
+}
+
+async function copyEmailSummary(){
+  buildEmailPreview();
+  const text = document.getElementById('emailPreview').value;
+  try{
+    await navigator.clipboard.writeText(text);
+    showToast('Summary copied');
+  }catch(e){
+    document.getElementById('emailPreview').select();
+    showToast('Select and copy manually');
+  }
+}
+
+/* ---------------- Toast ---------------- */
+let toastTimer=null;
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+/* ---------------- Render all ---------------- */
+function renderAll(){
+  renderMetaDisplay();
+  renderStandingCharges();
+  renderMileageList();
+  renderExpenseList();
+  renderFuelList();
+  renderOdoCheck();
+  renderDock();
+  renderSummary();
+}
+
+loadState();
+</script>
+
+<script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('./sw.js')
+      .then(()=>console.log('Service worker registered'))
+      .catch(e=>console.log('SW registration failed:', e));
+  });
+}
+</script>
+</body>
+</html>
