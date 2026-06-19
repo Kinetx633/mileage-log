@@ -3,11 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#1C2128">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Mileage Log">
-<link rel="manifest" href="manifest.json">
 <title>Mileage & Expenses Log</title>
 <style>
   :root{
@@ -557,28 +552,8 @@ const storageAdapter = (function(){
     try{
       const testKey = LOCAL_PREFIX + '__test__';
       window.localStorage.setItem(testKey, '1');
-      const ok = window.localStorage.getItem(testKey) === '1';
       window.localStorage.removeItem(testKey);
-      return ok;
-    }catch(e){
-      // QuotaExceededError or SecurityError — try clearing our own test key
-      // and retry once, in case quota was temporarily full
-      try{
-        window.localStorage.removeItem(LOCAL_PREFIX + '__test__');
-        window.localStorage.setItem(LOCAL_PREFIX + '__test__', '1');
-        const ok = window.localStorage.getItem(LOCAL_PREFIX + '__test__') === '1';
-        window.localStorage.removeItem(LOCAL_PREFIX + '__test__');
-        return ok;
-      }catch(e2){ return false; }
-    }
-  }
-  function sessionAvailable(){
-    try{
-      const testKey = LOCAL_PREFIX + '__test__';
-      window.sessionStorage.setItem(testKey, '1');
-      const ok = window.sessionStorage.getItem(testKey) === '1';
-      window.sessionStorage.removeItem(testKey);
-      return ok;
+      return true;
     }catch(e){ return false; }
   }
 
@@ -586,8 +561,8 @@ const storageAdapter = (function(){
     if(storageMode==='claude'){
       return await window.storage.get(key);
     }
-    if(storageMode==='local' || storageMode==='session'){
-      const raw = getStore().getItem(LOCAL_PREFIX + key);
+    if(storageMode==='local'){
+      const raw = window.localStorage.getItem(LOCAL_PREFIX + key);
       if(raw===null) throw new Error('not found');
       return { key, value: raw };
     }
@@ -597,8 +572,8 @@ const storageAdapter = (function(){
     if(storageMode==='claude'){
       return await window.storage.set(key, value);
     }
-    if(storageMode==='local' || storageMode==='session'){
-      getStore().setItem(LOCAL_PREFIX + key, value);
+    if(storageMode==='local'){
+      window.localStorage.setItem(LOCAL_PREFIX + key, value);
       return { key, value };
     }
     throw new Error('no storage available');
@@ -607,9 +582,9 @@ const storageAdapter = (function(){
     if(storageMode==='claude'){
       return await window.storage.delete(key);
     }
-    if(storageMode==='local' || storageMode==='session'){
-      if(getStore().getItem(LOCAL_PREFIX + key)===null) throw new Error('not found');
-      getStore().removeItem(LOCAL_PREFIX + key);
+    if(storageMode==='local'){
+      if(window.localStorage.getItem(LOCAL_PREFIX + key)===null) throw new Error('not found');
+      window.localStorage.removeItem(LOCAL_PREFIX + key);
       return { key, deleted:true };
     }
     throw new Error('no storage available');
@@ -619,11 +594,10 @@ const storageAdapter = (function(){
       const res = await window.storage.list(prefix);
       return res && res.keys ? res.keys : [];
     }
-    if(storageMode==='local' || storageMode==='session'){
-      const store = getStore();
+    if(storageMode==='local'){
       const keys = [];
-      for(let i=0; i<store.length; i++){
-        const fullKey = store.key(i);
+      for(let i=0; i<window.localStorage.length; i++){
+        const fullKey = window.localStorage.key(i);
         if(fullKey && fullKey.startsWith(LOCAL_PREFIX)){
           const bare = fullKey.slice(LOCAL_PREFIX.length);
           if(!prefix || bare.startsWith(prefix)) keys.push(bare);
@@ -637,13 +611,8 @@ const storageAdapter = (function(){
   function detect(){
     if(claudeAvailable()){ storageMode = 'claude'; }
     else if(localAvailable()){ storageMode = 'local'; }
-    else if(sessionAvailable()){ storageMode = 'session'; }
     else { storageMode = 'none'; }
     return storageMode;
-  }
-
-  function getStore(){
-    return storageMode === 'session' ? window.sessionStorage : window.localStorage;
   }
 
   return { get, set, delete: del, list, detect };
@@ -762,7 +731,6 @@ async function loadState(){
     return;
   }
   if(mode==='local') showLocalModeBanner();
-  if(mode==='session') showSessionModeBanner();
   try{
     const idxRes = await storageAdapter.get('bdm_active_key');
     const lastKey = idxRes ? idxRes.value : null;
@@ -806,14 +774,8 @@ function showStorageBanner(){
 }
 
 function showLocalModeBanner(){
+  // Quiet confirmation rather than a warning — saving works fine, just locally to this device/browser.
   showToast('Saving to this device and browser');
-}
-
-function showSessionModeBanner(){
-  const b = document.getElementById('storageBanner');
-  const t = document.getElementById('storageBannerText');
-  if(t) t.textContent = 'Using temporary session storage — data will be saved this visit but won\'t survive closing the browser. Try clearing Chrome\'s site data for this page and reload to fix permanently.';
-  if(b) b.style.display = 'block';
 }
 
 async function persist(){
@@ -1742,16 +1704,6 @@ function renderAll(){
 }
 
 loadState();
-</script>
-
-<script>
-if('serviceWorker' in navigator){
-  window.addEventListener('load', ()=>{
-    navigator.serviceWorker.register('./sw.js')
-      .then(()=>console.log('Service worker registered'))
-      .catch(e=>console.log('SW registration failed:', e));
-  });
-}
 </script>
 </body>
 </html>
