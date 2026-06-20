@@ -432,6 +432,7 @@
       <button class="btn btn-ghost" onclick="openReportModal()">Report</button>
       <button class="btn btn-ghost" onclick="printReport()">Print</button>
       <button class="btn btn-ghost" onclick="openExportModal()">Export</button>
+      <button class="btn btn-ghost" onclick="showDiagnostics()" style="font-size:10px; padding:10px 6px; color:var(--slate);">Diag</button>
     </div>
 
   </div>
@@ -521,6 +522,14 @@
       <button onclick="exportReceipts()">Download</button>
     </div>
     <textarea id="emailPreview" readonly style="width:100%; margin-top:10px; border:1px solid var(--line); border-radius:7px; padding:10px;"></textarea>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="diagModalBackdrop">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('diagModalBackdrop')">&times;</button>
+    <div class="modal-title">Storage diagnostics</div>
+    <pre id="diagContent" style="font-size:11px; font-family:monospace; white-space:pre-wrap; word-break:break-all; background:var(--paper-dim); padding:10px; border-radius:6px; max-height:60vh; overflow-y:auto;"></pre>
   </div>
 </div>
 
@@ -740,6 +749,41 @@ function openLightbox(dataUrl){
 }
 function closeLightbox(){
   document.getElementById('receiptLightbox').classList.remove('show');
+}
+
+async function showDiagnostics(){
+  const lines = [];
+  lines.push('=== STORAGE DIAGNOSTICS ===');
+  lines.push('Storage mode: ' + storageMode);
+  lines.push('storageAvailable: ' + storageAvailable);
+  lines.push('storageKey: ' + storageKey);
+  lines.push('state.meta.name: "' + state.meta.name + '"');
+  lines.push('state.meta.month: ' + state.meta.month);
+  lines.push('state.meta.year: ' + state.meta.year);
+  lines.push('mileage entries: ' + state.mileage.length);
+  lines.push('expense entries: ' + state.expenses.length);
+  lines.push('fuel entries: ' + state.fuel.length);
+  lines.push('');
+  lines.push('=== STORAGE KEYS ===');
+  try{
+    const keys = await storageAdapter.list('');
+    if(keys.length === 0){
+      lines.push('(no keys found)');
+    } else {
+      keys.forEach(k => lines.push(k));
+    }
+  }catch(e){ lines.push('Error listing keys: ' + e.message); }
+  lines.push('');
+  lines.push('=== bdm_active_key ===');
+  try{
+    const r = await storageAdapter.get('bdm_active_key');
+    lines.push(r ? r.value : '(not set)');
+  }catch(e){ lines.push('(not found)'); }
+  lines.push('');
+  lines.push('=== monthKey() output ===');
+  lines.push(monthKey());
+  document.getElementById('diagContent').textContent = lines.join('\n');
+  document.getElementById('diagModalBackdrop').classList.add('show');
 }
 
 function applyStateDefaults(){
