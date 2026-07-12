@@ -1793,6 +1793,13 @@ async function exportExpenseReportXlsx(){
     const yearShort = String(state.meta.year || '').slice(-2);
     ws.getCell('L2').value = monthShort + ' ' + yearShort;
 
+    // Clear the full data range first — the base file may carry old data in
+    // rows we're not about to write to this time (e.g. fewer entries than
+    // last time filled), so blank the whole block before writing fresh.
+    for(let r = XLSX_DATA_FIRST_ROW; r <= XLSX_DATA_LAST_ROW; r++){
+      ['A','B','C','E','F','G'].forEach(col => { ws.getCell(col+r).value = null; });
+    }
+
     // Fuel receipts — Date / Receipt No. / Litres (A:C, rows 7-34)
     const maxRows = XLSX_DATA_LAST_ROW - XLSX_DATA_FIRST_ROW + 1;
     const fuelRows = state.fuel.slice().sort((a,b)=>a.date.localeCompare(b.date));
