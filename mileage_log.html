@@ -1774,6 +1774,15 @@ function csvEscape(v){
 const XLSX_DATA_FIRST_ROW = 7;
 const XLSX_DATA_LAST_ROW = 34; // matches the template's SUM(G7:G34) formula — don't write past this
 
+function excelSafeDate(isoDateStr){
+  // ExcelJS reads a JS Date's UTC calendar day when writing it out, so
+  // building the date from local time (e.g. British Summer Time, UTC+1)
+  // silently rolls it back a day. Build directly in UTC so the day shown
+  // in the spreadsheet always matches the calendar day intended.
+  const [y,m,d] = isoDateStr.split('-').map(Number);
+  return new Date(Date.UTC(y, m-1, d));
+}
+
 async function exportExpenseReportXlsx(){
   if(typeof ExcelJS === 'undefined'){
     showToast('Excel export library did not load — check your connection');
@@ -1810,7 +1819,7 @@ async function exportExpenseReportXlsx(){
     fuelRows.slice(0, maxRows).forEach((e, i)=>{
       const r = XLSX_DATA_FIRST_ROW + i;
       const dateCell = ws.getCell('A'+r);
-      dateCell.value = new Date(e.date + 'T00:00:00');
+      dateCell.value = excelSafeDate(e.date);
       if(!dateCell.numFmt) dateCell.numFmt = 'd-mmm';
       ws.getCell('B'+r).value = e.invoice || '';
       ws.getCell('C'+r).value = e.litres;
@@ -1888,7 +1897,7 @@ async function exportMonthlyMileageXlsx(){
     const year = state.meta.year;
     ws.getCell('B3').value = state.meta.name;
     const monthCell = ws.getCell('E3');
-    monthCell.value = new Date(year, monthIndex, 1);
+    monthCell.value = new Date(Date.UTC(year, monthIndex, 1));
     monthCell.numFmt = 'mmm-yy';
     ws.getCell('B4').value = state.meta.reg;
     ws.getCell('E4').value = state.meta.fuelType;
@@ -1896,9 +1905,12 @@ async function exportMonthlyMileageXlsx(){
     ws.getCell('E46').value = parseFloat(state.odo.start) || 0;
 
     // Clear A-G for the whole data range first (never touch H — formula column).
-    // No colour/fill handling for now — data accuracy first.
+    // Also strip any fill baked into the template (the source file has June's
+    // actual weekends pre-shaded blue — left alone, that colour would show up
+    // on the wrong rows for every other month).
     for(let r = MILEAGE_FIRST_ROW; r <= MILEAGE_LAST_ROW; r++){
       ['A','B','C','D','E','F','G'].forEach(col=>{ ws.getCell(col+r).value = null; });
+      ['A','B','C','D','E','F','G','H'].forEach(col=>{ ws.getCell(col+r).fill = { type:'pattern', pattern:'none' }; });
     }
 
     const nDays = daysInMonth(year, monthIndex);
@@ -1912,12 +1924,11 @@ async function exportMonthlyMileageXlsx(){
 
     for(let day=1; day<=nDays; day++){
       const row = MILEAGE_FIRST_ROW + day - 1;
-      const dateObj = new Date(year, monthIndex, day);
-      const dow = dateObj.getDay(); // 0=Sun, 6=Sat
-      const iso = dateObj.getFullYear()+'-'+String(dateObj.getMonth()+1).padStart(2,'0')+'-'+String(dateObj.getDate()).padStart(2,'0');
+      const iso = year + '-' + String(monthIndex+1).padStart(2,'0') + '-' + String(day).padStart(2,'0');
+      const dow = new Date(Date.UTC(year, monthIndex, day)).getUTCDay(); // 0=Sun, 6=Sat
 
       const dCell = ws.getCell('A'+row);
-      dCell.value = dateObj;
+      dCell.value = new Date(Date.UTC(year, monthIndex, day));
       dCell.numFmt = 'mm-dd-yy';
 
       if(dow===0 || dow===6){
