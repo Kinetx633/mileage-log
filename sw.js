@@ -1,10 +1,11 @@
-const CACHE_NAME = 'mileage-log-v2-firebase';
+const CACHE_NAME = 'mileage-log-v3-mileage-report';
 const ASSETS = [
   './mileage_log.html',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
-  './expense_template.xlsx'
+  './expense_template.xlsx',
+  './monthly_mileage_template.xlsx'
 ];
 
 // Install: cache all assets, activate this version immediately

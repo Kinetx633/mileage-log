@@ -553,6 +553,10 @@
       <button onclick="exportExpenseReportXlsx()">Download</button>
     </div>
     <div class="export-opt" style="border-color:var(--amber); background:#FFF8EF;">
+      <div><div class="label">Monthly mileage log (.xlsx)</div><div class="sub">Day-by-day mileage sheet, weekends shaded, matches your company format</div></div>
+      <button onclick="exportMonthlyMileageXlsx()">Download</button>
+    </div>
+    <div class="export-opt" style="border-color:var(--amber); background:#FFF8EF;">
       <div><div class="label">Full backup</div><div class="sub" id="backupExportSub">Every month you've logged, plus receipts, in one file — save it to Google Drive or anywhere safe</div></div>
       <button onclick="exportFullBackup()">Download</button>
     </div>
@@ -1852,6 +1856,112 @@ async function exportExpenseReportXlsx(){
   }catch(e){
     console.error('Excel export error', e);
     showToast('Could not build the report — ' + e.message);
+  }
+}
+
+/* ---------------- Monthly mileage log (fills the day-by-day template) ---------------- */
+const MILEAGE_FIRST_ROW = 7;
+const MILEAGE_LAST_ROW = 44; // matches the template's SUM(F7:F44) etc formulas
+const WEEKEND_FILL = { type:'pattern', pattern:'solid', fgColor:{argb:'FF729FCF'} };
+const NO_FILL = { type:'pattern', pattern:'none' };
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+function daysInMonth(year, monthIndex){ return new Date(year, monthIndex+1, 0).getDate(); }
+
+async function exportMonthlyMileageXlsx(){
+  if(typeof ExcelJS === 'undefined'){
+    showToast('Excel export library did not load — check your connection');
+    return;
+  }
+  const monthIndex = MONTH_NAMES.indexOf(state.meta.month);
+  if(monthIndex === -1){
+    showToast('Could not work out the month — check header details');
+    return;
+  }
+  showToast('Building mileage log…');
+  try{
+    const resp = await fetch('./monthly_mileage_template.xlsx');
+    if(!resp.ok) throw new Error('Template file not found (HTTP ' + resp.status + ')');
+    const buf = await resp.arrayBuffer();
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buf);
+    const ws = workbook.worksheets[0];
+
+    const year = state.meta.year;
+    ws.getCell('B3').value = state.meta.name;
+    const monthCell = ws.getCell('E3');
+    monthCell.value = new Date(year, monthIndex, 1);
+    monthCell.numFmt = 'mmm-yy';
+    ws.getCell('B4').value = state.meta.reg;
+    ws.getCell('E4').value = state.meta.fuelType;
+    ws.getCell('H4').value = state.meta.engine;
+    ws.getCell('E46').value = parseFloat(state.odo.start) || 0;
+
+    // Clear A-G for the whole data range first (never touch H — formula column)
+    for(let r = MILEAGE_FIRST_ROW; r <= MILEAGE_LAST_ROW; r++){
+      ['A','B','C','D','E','F','G'].forEach(col=>{ ws.getCell(col+r).value = null; });
+      ['A','B','C','D','E','F','G','H'].forEach(col=>{ ws.getCell(col+r).fill = NO_FILL; });
+    }
+
+    const nDays = daysInMonth(year, monthIndex);
+    const overflow = nDays > (MILEAGE_LAST_ROW - MILEAGE_FIRST_ROW + 1);
+
+    const byDate = {};
+    state.mileage.forEach(e=>{
+      if(!byDate[e.date]) byDate[e.date] = [];
+      byDate[e.date].push(e);
+    });
+
+    for(let day=1; day<=nDays; day++){
+      const row = MILEAGE_FIRST_ROW + day - 1;
+      const dateObj = new Date(year, monthIndex, day);
+      const dow = dateObj.getDay(); // 0=Sun, 6=Sat
+      const iso = dateObj.getFullYear()+'-'+String(dateObj.getMonth()+1).padStart(2,'0')+'-'+String(dateObj.getDate()).padStart(2,'0');
+
+      const dCell = ws.getCell('A'+row);
+      dCell.value = dateObj;
+      dCell.numFmt = 'mm-dd-yy';
+
+      if(dow===0 || dow===6){
+        // Weekends left blank and shaded — matches your own convention (no weekend work)
+        ['A','B','C','D','E','F','G','H'].forEach(col=>{ ws.getCell(col+row).fill = WEEKEND_FILL; });
+        continue;
+      }
+
+      const entries = byDate[iso];
+      if(entries && entries.length){
+        const office = entries.some(e=>e.office==='Y') ? 'Y' : '';
+        const starts = [...new Set(entries.map(e=>e.start).filter(Boolean))].join(' / ');
+        const ends = [...new Set(entries.map(e=>e.end).filter(Boolean))].join(' / ');
+        const visited = [...new Set(entries.map(e=>e.postcodes).filter(Boolean))].join(' / ');
+        const biz = entries.reduce((s,e)=>s+(e.biz||0),0);
+        const pers = entries.reduce((s,e)=>s+(e.pers||0),0);
+        if(office) ws.getCell('B'+row).value = office;
+        if(starts) ws.getCell('C'+row).value = starts;
+        if(visited) ws.getCell('D'+row).value = visited;
+        if(ends) ws.getCell('E'+row).value = ends;
+        ws.getCell('F'+row).value = biz;
+        if(pers) ws.getCell('G'+row).value = pers;
+      }
+    }
+
+    const outBuf = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([outBuf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const fname = `mileage_log_${(state.meta.name||'bdm').replace(/\s+/g,'_')}_${state.meta.month}_${state.meta.year}.xlsx`;
+    a.href = url; a.download = fname;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    if(overflow){
+      showToast('Mileage log downloaded — but this month has more days than the template rows. Let Mick know.');
+    } else {
+      showToast('Mileage log downloaded');
+    }
+  }catch(e){
+    console.error('Mileage export error', e);
+    showToast('Could not build the mileage log — ' + e.message);
   }
 }
 
