@@ -13,76 +13,77 @@
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-storage-compat.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <style>
   :root{
     --ink:#1C2128;
-    --paper:#FAF7F0;
-    --paper-dim:#F1ECE0;
+    --paper:#FDFBF6;
+    --paper-dim:#EFE9DC;
     --amber:#D97D30;
+    --amber-text:#96450F;
     --amber-dim:#B8631F;
-    --slate:#5B6472;
-    --line:#E2DDD2;
-    --line-dark:#3A4150;
-    --good:#4C7A52;
-    --bad:#B6442F;
+    --slate:#4B5563;
+    --line:#DDD6C8;
+    --line-dark:#C9C1B0;
+    --good:#2F6B37;
+    --bad:#A13A26;
     --mono:'JetBrains Mono', 'SF Mono', 'Consolas', monospace;
     --sans:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
   *{box-sizing:border-box;}
   body{
-    margin:0; background:var(--ink); color:var(--paper);
+    margin:0; background:var(--paper); color:var(--ink);
     font-family:var(--sans); -webkit-font-smoothing:antialiased;
-    min-height:100vh;
+    min-height:100vh; font-size:16px;
   }
   .app{ max-width:720px; margin:0 auto; padding-bottom:84px; }
 
   /* ---------- Header / instrument strip ---------- */
   .topbar{
-    background:linear-gradient(180deg, #20262F 0%, #1C2128 100%);
-    border-bottom:1px solid var(--line-dark);
+    background:linear-gradient(180deg, #FFFFFF 0%, #F7F2E6 100%);
+    border-bottom:1px solid var(--line);
     padding:18px 18px 14px;
     position:sticky; top:0; z-index:20;
   }
   .topbar-row1{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; }
-  .brand{ font-family:var(--mono); font-size:11px; letter-spacing:.14em; color:var(--amber); text-transform:uppercase; }
-  .brand-sub{ font-family:var(--mono); font-size:11px; color:var(--slate); }
+  .brand{ font-family:var(--mono); font-size:13px; letter-spacing:.12em; color:var(--amber-text); text-transform:uppercase; }
+  .brand-sub{ font-family:var(--mono); font-size:13px; color:var(--slate); }
   .meta-line{
-    margin-top:10px; display:grid; grid-template-columns:1fr 1fr; gap:6px 14px;
-    font-family:var(--mono); font-size:12.5px;
+    margin-top:10px; display:grid; grid-template-columns:1fr 1fr; gap:7px 14px;
+    font-family:var(--mono); font-size:14px;
   }
-  .meta-item{ display:flex; justify-content:space-between; border-bottom:1px dashed var(--line-dark); padding-bottom:4px; }
+  .meta-item{ display:flex; justify-content:space-between; border-bottom:1px dashed var(--line); padding-bottom:4px; }
   .meta-item span.k{ color:var(--slate); }
-  .meta-item span.v{ color:var(--paper); font-weight:600; }
+  .meta-item span.v{ color:var(--ink); font-weight:600; }
   .meta-edit-btn{
-    margin-top:10px; width:100%; background:none; border:1px solid var(--line-dark);
-    color:var(--slate); font-family:var(--sans); font-size:12px; padding:7px;
+    margin-top:10px; width:100%; background:#fff; border:1px solid var(--line);
+    color:var(--slate); font-family:var(--sans); font-size:13.5px; padding:8px;
     border-radius:6px; cursor:pointer;
   }
-  .meta-edit-btn:active{ background:#262C36; }
+  .meta-edit-btn:active{ background:var(--paper-dim); }
 
   .storage-banner{
-    display:none; background:#3A2A1A; border-bottom:1px solid var(--amber-dim);
-    color:var(--amber); font-size:11.5px; padding:9px 16px; line-height:1.4;
+    display:none; background:#FFF3E0; border-bottom:1px solid var(--amber-dim);
+    color:#7A3D0E; font-size:13px; padding:9px 16px; line-height:1.4;
     position:relative; padding-right:34px;
   }
   .storage-banner button{
     position:absolute; top:5px; right:10px; background:none; border:none;
-    color:var(--amber); font-size:18px; cursor:pointer; line-height:1;
+    color:#7A3D0E; font-size:18px; cursor:pointer; line-height:1;
   }
 
   /* ---------- Tabs ---------- */
   .tabs{
-    display:flex; background:#20262F; border-bottom:1px solid var(--line-dark);
+    display:flex; background:#FFFFFF; border-bottom:1px solid var(--line);
     position:sticky; top:0; z-index:19;
   }
   .tabs.stuck{ top:0; }
   .tab{
-    flex:1; text-align:center; padding:12px 4px; font-family:var(--sans);
-    font-size:12.5px; font-weight:600; color:var(--slate); cursor:pointer;
+    flex:1; text-align:center; padding:13px 4px; font-family:var(--sans);
+    font-size:14px; font-weight:600; color:var(--slate); cursor:pointer;
     border-bottom:2px solid transparent; letter-spacing:.01em;
   }
-  .tab.active{ color:var(--amber); border-bottom-color:var(--amber); }
+  .tab.active{ color:var(--amber-text); border-bottom-color:var(--amber-text); }
 
   /* ---------- Content panel (paper) ---------- */
   .panel{ background:var(--paper); color:var(--ink); min-height:60vh; }
@@ -90,27 +91,27 @@
   .section.active{ display:block; }
 
   .section-title{
-    font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase;
-    color:var(--amber-dim); margin:4px 0 12px; display:flex; justify-content:space-between; align-items:center;
+    font-family:var(--mono); font-size:12.5px; letter-spacing:.09em; text-transform:uppercase;
+    color:var(--amber-text); margin:4px 0 12px; display:flex; justify-content:space-between; align-items:center;
   }
 
   /* ---------- Forms ---------- */
   .card{
     background:#fff; border:1px solid var(--line); border-radius:10px;
-    padding:14px; margin-bottom:12px; box-shadow:0 1px 2px rgba(0,0,0,.03);
+    padding:14px; margin-bottom:12px; box-shadow:0 1px 2px rgba(0,0,0,.04);
   }
-  .field{ margin-bottom:11px; }
+  .field{ margin-bottom:12px; }
   .field:last-child{ margin-bottom:0; }
   .field label{
-    display:block; font-size:11.5px; color:var(--slate); margin-bottom:4px;
+    display:block; font-size:13px; color:var(--slate); margin-bottom:5px;
     font-weight:600; letter-spacing:.02em;
   }
   .field input, .field select, .field textarea{
-    width:100%; border:1px solid var(--line); border-radius:7px; padding:9px 10px;
-    font-size:15px; font-family:var(--sans); background:var(--paper-dim); color:var(--ink);
+    width:100%; border:1px solid var(--line); border-radius:7px; padding:10px 11px;
+    font-size:16px; font-family:var(--sans); background:var(--paper-dim); color:var(--ink);
   }
   .field input:focus, .field select:focus, .field textarea:focus{
-    outline:none; border-color:var(--amber); background:#fff;
+    outline:none; border-color:var(--amber-text); background:#fff;
   }
   .field.num input{ font-family:var(--mono); font-weight:600; }
   .row2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
@@ -118,13 +119,13 @@
 
   .yn-toggle{ display:flex; gap:8px; }
   .yn-btn{
-    flex:1; padding:9px; text-align:center; border:1px solid var(--line); border-radius:7px;
-    background:var(--paper-dim); font-size:14px; font-weight:600; color:var(--slate); cursor:pointer;
+    flex:1; padding:10px; text-align:center; border:1px solid var(--line); border-radius:7px;
+    background:var(--paper-dim); font-size:15px; font-weight:600; color:var(--slate); cursor:pointer;
   }
   .yn-btn.sel{ background:var(--ink); color:var(--amber); border-color:var(--ink); }
 
   .receipt-buttons{ display:flex; gap:8px; }
-  .receipt-btn{ font-size:13px; padding:9px 8px; }
+  .receipt-btn{ font-size:14px; padding:10px 8px; }
   .receipt-preview{
     margin-top:9px; display:flex; align-items:center; gap:10px;
     background:var(--paper-dim); border:1px solid var(--line); border-radius:8px; padding:8px;
@@ -134,7 +135,7 @@
     cursor:pointer;
   }
   .receipt-remove{
-    background:none; border:none; color:var(--bad); font-size:12.5px; font-weight:600;
+    background:none; border:none; color:var(--bad); font-size:13.5px; font-weight:600;
     cursor:pointer; text-decoration:underline; padding:0;
   }
   .receipt-thumb{
@@ -154,80 +155,80 @@
 
   .btn{
     display:inline-flex; align-items:center; justify-content:center; gap:6px;
-    padding:11px 16px; border-radius:8px; font-size:14px; font-weight:700;
+    padding:12px 16px; border-radius:8px; font-size:15px; font-weight:700;
     cursor:pointer; border:none; font-family:var(--sans); width:100%;
   }
   .btn-primary{ background:var(--ink); color:var(--amber); }
   .btn-primary:active{ background:#2B323E; }
-  .btn-ghost{ background:none; border:1px solid var(--line); color:var(--ink); }
+  .btn-ghost{ background:#fff; border:1px solid var(--line); color:var(--ink); }
   .btn-row{ display:flex; gap:8px; margin-top:4px; }
   .btn-row .btn{ width:auto; flex:1; }
 
   /* ---------- List rows ---------- */
   .entry{
     background:#fff; border:1px solid var(--line); border-radius:10px;
-    padding:11px 13px; margin-bottom:8px; position:relative;
+    padding:12px 13px; margin-bottom:8px; position:relative;
   }
   .entry-top{ display:flex; justify-content:space-between; align-items:baseline; padding-right:64px; }
-  .entry-date{ font-family:var(--mono); font-size:12.5px; font-weight:700; color:var(--ink); }
-  .entry-tag{ font-size:10.5px; padding:2px 7px; border-radius:10px; background:var(--paper-dim); color:var(--slate); font-weight:700; }
-  .entry-tag.office{ background:#E7EEE7; color:var(--good); }
-  .entry-detail{ font-size:13px; color:var(--slate); margin-top:4px; line-height:1.4; }
-  .entry-nums{ display:flex; align-items:center; gap:14px; margin-top:7px; font-family:var(--mono); font-size:13px; flex-wrap:wrap; }
+  .entry-date{ font-family:var(--mono); font-size:13.5px; font-weight:700; color:var(--ink); }
+  .entry-tag{ font-size:11.5px; padding:2px 7px; border-radius:10px; background:var(--paper-dim); color:var(--slate); font-weight:700; }
+  .entry-tag.office{ background:#E1EEE2; color:var(--good); }
+  .entry-detail{ font-size:14px; color:var(--slate); margin-top:4px; line-height:1.4; }
+  .entry-nums{ display:flex; align-items:center; gap:14px; margin-top:7px; font-family:var(--mono); font-size:14px; flex-wrap:wrap; }
   .entry-nums .receipt-thumb{ margin-left:auto; }
   .entry-nums b{ color:var(--ink); }
   .entry-del{
     position:absolute; top:10px; right:10px; background:none; border:none; color:var(--bad);
-    font-size:18px; cursor:pointer; line-height:1; padding:2px 6px;
+    font-size:19px; cursor:pointer; line-height:1; padding:2px 6px;
   }
   .entry-edit{
-    position:absolute; top:9px; right:34px; background:none; border:1px solid var(--line);
-    color:var(--slate); font-size:11px; font-weight:700; cursor:pointer; line-height:1;
-    padding:4px 8px; border-radius:5px; font-family:var(--sans);
+    position:absolute; top:9px; right:34px; background:#fff; border:1px solid var(--line);
+    color:var(--slate); font-size:12px; font-weight:700; cursor:pointer; line-height:1;
+    padding:5px 9px; border-radius:5px; font-family:var(--sans);
   }
   .entry-edit:active{ background:var(--paper-dim); }
   .empty-state{
-    text-align:center; padding:36px 20px; color:var(--slate); font-size:13.5px;
+    text-align:center; padding:36px 20px; color:var(--slate); font-size:14.5px;
   }
   .empty-state .big{ font-size:28px; display:block; margin-bottom:8px; opacity:.5; }
 
   /* ---------- Totals dock ---------- */
   .dock{
-    position:fixed; bottom:0; left:0; right:0; background:#15191F;
-    border-top:1px solid var(--line-dark); padding:10px 16px 12px;
-    display:flex; z-index:30;
+    position:fixed; bottom:0; left:0; right:0; background:#FFFFFF;
+    border-top:1px solid var(--line); padding:10px 16px 12px;
+    display:flex; z-index:30; box-shadow:0 -2px 8px rgba(0,0,0,.05);
   }
   .dock-inner{ max-width:720px; margin:0 auto; display:flex; width:100%; gap:0; }
-  .dock-item{ flex:1; text-align:center; border-right:1px solid var(--line-dark); }
+  .dock-item{ flex:1; text-align:center; border-right:1px solid var(--line); }
   .dock-item:last-child{ border-right:none; }
-  .dock-label{ font-size:9.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--slate); }
-  .dock-value{ font-family:var(--mono); font-size:16px; font-weight:700; color:var(--amber); margin-top:2px; }
+  .dock-label{ font-size:10.5px; text-transform:uppercase; letter-spacing:.07em; color:var(--slate); }
+  .dock-value{ font-family:var(--mono); font-size:18px; font-weight:700; color:var(--amber-text); margin-top:2px; }
 
   /* ---------- Action buttons bar (report/print/export) ---------- */
   .action-bar{ display:flex; gap:8px; padding:0 16px 14px; }
-  .action-bar .btn{ font-size:12.5px; padding:10px 8px; }
+  .action-bar .btn{ font-size:13.5px; padding:10px 8px; }
 
   /* ---------- Summary / report styling ---------- */
   .report-block{ margin-bottom:18px; }
   .report-head{
-    font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase;
+    font-family:var(--mono); font-size:12px; letter-spacing:.09em; text-transform:uppercase;
     color:var(--slate); border-bottom:1px solid var(--line); padding-bottom:6px; margin-bottom:8px;
   }
-  .report-row{ display:flex; justify-content:space-between; padding:5px 0; font-size:14px; border-bottom:1px dashed var(--line); }
-  .report-row.total{ font-weight:800; font-size:15.5px; border-bottom:none; border-top:1px solid var(--ink); margin-top:4px; padding-top:8px; }
+  .report-row{ display:flex; justify-content:space-between; padding:6px 0; font-size:15px; border-bottom:1px dashed var(--line); }
+  .report-row.total{ font-weight:800; font-size:16.5px; border-bottom:none; border-top:1px solid var(--ink); margin-top:4px; padding-top:8px; }
   .report-row .v{ font-family:var(--mono); }
   .report-row .v.warn{ color:var(--bad); }
   .report-row .v.ok{ color:var(--good); }
 
   .daily-log-table{
-    width:100%; border-collapse:collapse; font-size:12px; font-family:var(--mono);
+    width:100%; border-collapse:collapse; font-size:13px; font-family:var(--mono);
   }
   .daily-log-table th{
-    text-align:left; font-family:var(--sans); font-size:10.5px; text-transform:uppercase;
-    letter-spacing:.03em; color:var(--slate); border-bottom:1px solid var(--ink); padding:5px 6px;
+    text-align:left; font-family:var(--sans); font-size:11.5px; text-transform:uppercase;
+    letter-spacing:.03em; color:var(--slate); border-bottom:1px solid var(--ink); padding:6px 6px;
   }
   .daily-log-table td{
-    padding:5px 6px; border-bottom:1px solid var(--line); vertical-align:top;
+    padding:6px 6px; border-bottom:1px solid var(--line); vertical-align:top;
   }
   .daily-log-table tr:nth-child(even) td{ background:var(--paper-dim); }
 
@@ -240,26 +241,26 @@
     background:var(--paper); color:var(--ink); width:100%; max-width:720px;
     border-radius:16px 16px 0 0; padding:18px 18px 22px; max-height:88vh; overflow-y:auto;
   }
-  .modal-title{ font-family:var(--mono); font-size:13px; letter-spacing:.08em; text-transform:uppercase; color:var(--amber-dim); margin-bottom:14px; }
-  .modal-close{ float:right; background:none; border:none; font-size:20px; color:var(--slate); cursor:pointer; }
+  .modal-title{ font-family:var(--mono); font-size:14px; letter-spacing:.07em; text-transform:uppercase; color:var(--amber-text); margin-bottom:14px; }
+  .modal-close{ float:right; background:none; border:none; font-size:22px; color:var(--slate); cursor:pointer; }
 
   .export-opt{
-    display:flex; align-items:center; justify-content:space-between; padding:13px 14px;
+    display:flex; align-items:center; justify-content:space-between; padding:14px 14px;
     border:1px solid var(--line); border-radius:9px; margin-bottom:9px; background:#fff;
   }
-  .export-opt .label{ font-size:14px; font-weight:600; }
-  .export-opt .sub{ font-size:11.5px; color:var(--slate); margin-top:2px; }
+  .export-opt .label{ font-size:15px; font-weight:600; }
+  .export-opt .sub{ font-size:12.5px; color:var(--slate); margin-top:2px; }
   .export-opt button{
     background:var(--ink); color:var(--amber); border:none; border-radius:6px;
-    padding:8px 14px; font-size:12.5px; font-weight:700; cursor:pointer;
+    padding:9px 15px; font-size:13.5px; font-weight:700; cursor:pointer;
   }
 
-  textarea#emailPreview{ font-family:var(--mono); font-size:12px; min-height:200px; white-space:pre; }
+  textarea#emailPreview{ font-family:var(--mono); font-size:13px; min-height:200px; white-space:pre; }
 
   .toast{
     position:fixed; bottom:96px; left:50%; transform:translateX(-50%);
-    background:var(--ink); color:var(--amber); padding:10px 18px; border-radius:20px;
-    font-size:13px; font-weight:600; z-index:60; opacity:0; pointer-events:none;
+    background:var(--ink); color:var(--amber); padding:11px 19px; border-radius:20px;
+    font-size:14px; font-weight:600; z-index:60; opacity:0; pointer-events:none;
     transition:opacity .25s ease, transform .25s ease;
   }
   .toast.show{ opacity:1; transform:translateX(-50%) translateY(-6px); }
@@ -267,20 +268,20 @@
   /* ---------- Login screen ---------- */
 .login-screen{
   min-height:100vh; display:flex; align-items:center; justify-content:center;
-  background:var(--ink); padding:24px;
+  background:var(--paper); padding:24px;
 }
 .login-box{ width:100%; max-width:340px; }
-.login-brand{ font-family:var(--mono); font-size:12px; letter-spacing:.14em; color:var(--amber); text-transform:uppercase; text-align:center; margin-bottom:22px; }
-.login-box .card{ background:var(--paper); }
-.login-error{ color:var(--bad); font-size:12.5px; margin-top:2px; min-height:16px; }
+.login-brand{ font-family:var(--mono); font-size:13px; letter-spacing:.12em; color:var(--amber-text); text-transform:uppercase; text-align:center; margin-bottom:22px; }
+.login-box .card{ background:#fff; }
+.login-error{ color:var(--bad); font-size:13.5px; margin-top:2px; min-height:16px; }
 .login-links{ display:flex; justify-content:space-between; margin-top:10px; }
-.login-links a{ font-size:12px; color:var(--slate); text-decoration:underline; cursor:pointer; }
+.login-links a{ font-size:13px; color:var(--slate); text-decoration:underline; cursor:pointer; }
 .logout-btn{
-  margin-top:8px; width:100%; background:none; border:1px solid var(--line-dark);
-  color:var(--slate); font-family:var(--sans); font-size:12px; padding:7px;
+  margin-top:8px; width:100%; background:#fff; border:1px solid var(--line);
+  color:var(--slate); font-family:var(--sans); font-size:13px; padding:8px;
   border-radius:6px; cursor:pointer;
 }
-.logout-btn:active{ background:#262C36; }
+.logout-btn:active{ background:var(--paper-dim); }
 .sync-dot{ display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:5px; vertical-align:middle; }
 .sync-dot.ok{ background:var(--good); }
 .sync-dot.bad{ background:var(--bad); }
@@ -1770,18 +1771,8 @@ function csvEscape(v){
 const XLSX_DATA_FIRST_ROW = 7;
 const XLSX_DATA_LAST_ROW = 34; // matches the template's SUM(G7:G34) formula — don't write past this
 
-function excelDateCell(isoDate){
-  return { t:'d', v: new Date(isoDate + 'T00:00:00'), z:'d-mmm' };
-}
-function excelMoneyCell(n){
-  return { t:'n', v: Math.round(n*100)/100, z:'0.00' };
-}
-function excelTextCell(s){
-  return { t:'s', v: (s===null||s===undefined) ? '' : String(s) };
-}
-
 async function exportExpenseReportXlsx(){
-  if(typeof XLSX === 'undefined'){
+  if(typeof ExcelJS === 'undefined'){
     showToast('Excel export library did not load — check your connection');
     return;
   }
@@ -1790,52 +1781,55 @@ async function exportExpenseReportXlsx(){
     const resp = await fetch('./expense_template.xlsx');
     if(!resp.ok) throw new Error('Template file not found (HTTP ' + resp.status + ')');
     const buf = await resp.arrayBuffer();
-    const wb = XLSX.read(buf, { type:'array', cellStyles:true });
-    const sheetName = wb.SheetNames[0];
-    const ws = wb.Sheets[sheetName];
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buf);
+    const ws = workbook.worksheets[0];
 
-    function writeCell(coord, cellObj){
-      ws[coord] = Object.assign({}, ws[coord] || {}, cellObj);
-    }
-
-    // Header
-    writeCell('C2', excelTextCell(state.meta.name));
-    writeCell('C3', excelTextCell(state.meta.region || 1));
+    // Only .value is touched below — never .style — so every colour, border
+    // and font already in the template carries straight through untouched.
+    ws.getCell('C2').value = state.meta.name;
+    ws.getCell('C3').value = state.meta.region || 1;
     const monthShort = (state.meta.month || '').slice(0,3).toUpperCase();
     const yearShort = String(state.meta.year || '').slice(-2);
-    writeCell('L2', excelTextCell(monthShort + ' ' + yearShort));
+    ws.getCell('L2').value = monthShort + ' ' + yearShort;
 
     // Fuel receipts — Date / Receipt No. / Litres (A:C, rows 7-34)
+    const maxRows = XLSX_DATA_LAST_ROW - XLSX_DATA_FIRST_ROW + 1;
     const fuelRows = state.fuel.slice().sort((a,b)=>a.date.localeCompare(b.date));
-    let fuelOverflow = fuelRows.length > (XLSX_DATA_LAST_ROW - XLSX_DATA_FIRST_ROW + 1);
-    fuelRows.slice(0, XLSX_DATA_LAST_ROW - XLSX_DATA_FIRST_ROW + 1).forEach((e, i)=>{
+    const fuelOverflow = fuelRows.length > maxRows;
+    fuelRows.slice(0, maxRows).forEach((e, i)=>{
       const r = XLSX_DATA_FIRST_ROW + i;
-      writeCell('A'+r, excelDateCell(e.date));
-      writeCell('B'+r, excelTextCell(e.invoice));
-      writeCell('C'+r, { t:'n', v: e.litres });
+      const dateCell = ws.getCell('A'+r);
+      dateCell.value = new Date(e.date + 'T00:00:00');
+      if(!dateCell.numFmt) dateCell.numFmt = 'd-mmm';
+      ws.getCell('B'+r).value = e.invoice || '';
+      ws.getCell('C'+r).value = e.litres;
     });
 
     // Expense items — Date(month text) / Description / Total (E:G, rows 7-34)
     // Matches the template's own convention: this column carries the month
     // name, not the specific day (see "May" against "Home Allowance").
+    const monthLabel = monthShort.charAt(0) + monthShort.slice(1).toLowerCase();
     const expenseRows = [];
     state.expenses.slice().sort((a,b)=>a.date.localeCompare(b.date)).forEach(e=>{
-      expenseRows.push({ label: monthShort.charAt(0)+monthShort.slice(1).toLowerCase(), desc: e.notes, amt: e.total });
+      expenseRows.push({ desc: e.notes, amt: e.total });
     });
     (state.standingCharges||[]).filter(c=>c.enabled).forEach(c=>{
-      expenseRows.push({ label: monthShort.charAt(0)+monthShort.slice(1).toLowerCase(), desc: c.label, amt: c.amount });
+      expenseRows.push({ desc: c.label, amt: c.amount });
     });
-    let expenseOverflow = expenseRows.length > (XLSX_DATA_LAST_ROW - XLSX_DATA_FIRST_ROW + 1);
-    expenseRows.slice(0, XLSX_DATA_LAST_ROW - XLSX_DATA_FIRST_ROW + 1).forEach((e, i)=>{
+    const expenseOverflow = expenseRows.length > maxRows;
+    expenseRows.slice(0, maxRows).forEach((e, i)=>{
       const r = XLSX_DATA_FIRST_ROW + i;
-      writeCell('E'+r, excelTextCell(e.label));
-      writeCell('F'+r, excelTextCell(e.desc));
-      writeCell('G'+r, excelMoneyCell(e.amt));
+      ws.getCell('E'+r).value = monthLabel;
+      ws.getCell('F'+r).value = e.desc || '';
+      const amtCell = ws.getCell('G'+r);
+      amtCell.value = Math.round(e.amt*100)/100;
+      if(!amtCell.numFmt) amtCell.numFmt = '0.00';
     });
-    // G35's "=SUM(G7:G34)" formula is left completely untouched.
+    // G35's "=SUM(G7:G34)" formula is never touched.
 
-    const out = XLSX.write(wb, { bookType:'xlsx', type:'array' });
-    const blob = new Blob([out], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const outBuf = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([outBuf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     const fname = `expense_report_${(state.meta.name||'bdm').replace(/\s+/g,'_')}_${state.meta.month}_${state.meta.year}.xlsx`;
