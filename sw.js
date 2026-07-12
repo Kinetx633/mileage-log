@@ -1,12 +1,13 @@
-const CACHE_NAME = 'mileage-log-v1';
+const CACHE_NAME = 'mileage-log-v2-firebase';
 const ASSETS = [
   './mileage_log.html',
   './manifest.json',
   './icon-192.png',
-  './icon-512.png'
+  './icon-512.png',
+  './expense_template.xlsx'
 ];
 
-// Install: cache all assets
+// Install: cache all assets, activate this version immediately
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))
@@ -14,7 +15,9 @@ self.addEventListener('install', event => {
   self.skipWaiting();
 });
 
-// Activate: clear old caches
+// Activate: clear old caches, take control of open tabs right away
+// (important here — this version replaces local-storage saving with
+// Firebase, so everyone needs to be moved onto it, not left on the old cache)
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys =>
@@ -24,7 +27,9 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
-// Fetch: serve from cache, fall back to network
+// Fetch: serve from cache, fall back to network.
+// Firebase's own requests (auth/firestore/storage) are cross-origin and pass
+// straight through — only same-origin app files are cached here.
 self.addEventListener('fetch', event => {
   event.respondWith(
     caches.match(event.request).then(cached => cached || fetch(event.request))

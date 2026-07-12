@@ -9,6 +9,11 @@
 <meta name="apple-mobile-web-app-title" content="Mileage Log">
 <link rel="manifest" href="manifest.json">
 <title>Mileage & Expenses Log</title>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-storage-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <style>
   :root{
     --ink:#1C2128;
@@ -259,7 +264,27 @@
   }
   .toast.show{ opacity:1; transform:translateX(-50%) translateY(-6px); }
 
-  @media print{
+  /* ---------- Login screen ---------- */
+.login-screen{
+  min-height:100vh; display:flex; align-items:center; justify-content:center;
+  background:var(--ink); padding:24px;
+}
+.login-box{ width:100%; max-width:340px; }
+.login-brand{ font-family:var(--mono); font-size:12px; letter-spacing:.14em; color:var(--amber); text-transform:uppercase; text-align:center; margin-bottom:22px; }
+.login-box .card{ background:var(--paper); }
+.login-error{ color:var(--bad); font-size:12.5px; margin-top:2px; min-height:16px; }
+.login-links{ display:flex; justify-content:space-between; margin-top:10px; }
+.login-links a{ font-size:12px; color:var(--slate); text-decoration:underline; cursor:pointer; }
+.logout-btn{
+  margin-top:8px; width:100%; background:none; border:1px solid var(--line-dark);
+  color:var(--slate); font-family:var(--sans); font-size:12px; padding:7px;
+  border-radius:6px; cursor:pointer;
+}
+.logout-btn:active{ background:#262C36; }
+.sync-dot{ display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:5px; vertical-align:middle; }
+.sync-dot.ok{ background:var(--good); }
+.sync-dot.bad{ background:var(--bad); }
+@media print{
     body{ background:#fff; }
     .topbar, .tabs, .dock, .action-bar, .entry-del, .entry-edit, .meta-edit-btn, .receipt-buttons, .receipt-thumb, .storage-banner{ display:none !important; }
     .panel{ background:#fff; }
@@ -273,7 +298,24 @@
 </head>
 <body>
 
-<div class="app" id="app">
+<div class="login-screen" id="loginScreen">
+  <div class="login-box">
+    <div class="login-brand">Mileage &amp; Expenses Log</div>
+    <div class="card">
+      <div class="field"><label>Email</label><input type="email" id="login_email" autocomplete="username" placeholder="you@company.com"></div>
+      <div class="field"><label>Password</label><input type="password" id="login_pass" autocomplete="current-password" placeholder="Password"></div>
+      <div class="login-error" id="loginError"></div>
+      <button class="btn btn-primary" onclick="doLogin()">Sign in</button>
+      <div class="login-links">
+        <a onclick="doPasswordReset()">Forgot password?</a>
+      </div>
+    </div>
+    <div style="text-align:center; font-size:11px; color:var(--slate); margin-top:14px;">Accounts are set up by your admin — speak to them if you don't have a login yet.</div>
+  </div>
+</div>
+
+<div class="app" id="app" style="display:none;">
+
 
   <div class="topbar">
     <div class="topbar-row1">
@@ -282,11 +324,14 @@
     </div>
     <div class="meta-line">
       <div class="meta-item"><span class="k">BDM</span><span class="v" id="metaName">—</span></div>
+      <div class="meta-item"><span class="k">Region</span><span class="v" id="metaRegion">—</span></div>
       <div class="meta-item"><span class="k">Market</span><span class="v" id="metaMarket">—</span></div>
       <div class="meta-item"><span class="k">Reg No.</span><span class="v" id="metaReg">—</span></div>
       <div class="meta-item"><span class="k">Engine</span><span class="v" id="metaEngine">—</span></div>
+      <div class="meta-item"><span class="k">Sync</span><span class="v" id="metaSync"><span class="sync-dot ok"></span>—</span></div>
     </div>
     <button class="meta-edit-btn" onclick="openMetaModal()">Edit header details</button>
+    <button class="logout-btn" onclick="doLogout()">Log out (<span id="metaEmail">—</span>)</button>
   </div>
 
   <div id="storageBanner" class="storage-banner">
@@ -452,6 +497,12 @@
     <button class="modal-close" onclick="closeModal('metaModalBackdrop')">&times;</button>
     <div class="modal-title">Header details</div>
     <div class="field"><label>BDM name</label><input type="text" id="in_name" placeholder="Enter name"></div>
+    <div class="field"><label>Region (required)</label>
+      <select id="in_region">
+        <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+        <option value="4">4</option><option value="5">5</option>
+      </select>
+    </div>
     <div class="field"><label>Market</label><input type="text" id="in_market" placeholder="Enter market/region"></div>
     <div class="row2">
       <div class="field"><label>Month</label>
@@ -496,6 +547,10 @@
     <button class="modal-close" onclick="closeModal('exportModalBackdrop')">&times;</button>
     <div class="modal-title">Export this month</div>
 
+    <div class="export-opt" style="border-color:var(--amber); background:#FFF8EF;">
+      <div><div class="label">Expense report (.xlsx)</div><div class="sub" id="expenseReportSub">Fills your company's expense report template — ready to send off</div></div>
+      <button onclick="exportExpenseReportXlsx()">Download</button>
+    </div>
     <div class="export-opt" style="border-color:var(--amber); background:#FFF8EF;">
       <div><div class="label">Full backup</div><div class="sub" id="backupExportSub">Every month you've logged, plus receipts, in one file — save it to Google Drive or anywhere safe</div></div>
       <button onclick="exportFullBackup()">Download</button>
@@ -543,139 +598,184 @@
 <script>
 /* ---------------- State & persistence ---------------- */
 let state = {
-  meta: { name:'', market:'', month:'June', year:2026, reg:'', engine:'', fuelType:'Petrol' },
+  meta: { name:'', region:1, market:'', month:'June', year:2026, reg:'', engine:'', fuelType:'Petrol' },
   mileage: [], expenses: [], fuel: [], odo: { start:'' },
   reportOptions: { includeJourney: false },
   standingCharges: [ { id:'home_use', label:'Home Use', amount:18.00, enabled:true } ]
 };
 let storageKey = null;
 let storageAvailable = true;
-let storageMode = 'none'; // 'claude' | 'local' | 'none'
+let storageMode = 'firebase';
+let currentUser = null;
 
-/* Storage adapter: prefers Claude's artifact storage (window.storage) when
-   running inside Claude, falls back to the browser's own localStorage when
-   this file is opened standalone (double-clicked, saved to desktop, etc.),
-   and only gives up if neither is available. */
+/* ---------------- Firebase ---------------- */
+// Paste your project's own values here — Firebase console > Project settings
+// > General > Your apps > SDK setup and configuration > Config.
+const firebaseConfig = {
+  apiKey: "REPLACE_ME",
+  authDomain: "REPLACE_ME.firebaseapp.com",
+  projectId: "REPLACE_ME",
+  storageBucket: "REPLACE_ME.appspot.com",
+  messagingSenderId: "REPLACE_ME",
+  appId: "REPLACE_ME"
+};
+firebase.initializeApp(firebaseConfig);
+const fbAuth = firebase.auth();
+const fbDb = firebase.firestore();
+const fbStorage = firebase.storage();
+
+// Keeps working with patchy signal — queues changes and syncs when back online.
+fbDb.enablePersistence({ synchronizeTabs: true }).catch(err=>{
+  console.warn('Offline persistence not enabled:', err.code);
+});
+
+function setSyncStatus(ok, label){
+  const el = document.getElementById('metaSync');
+  if(!el) return;
+  el.innerHTML = `<span class="sync-dot ${ok?'ok':'bad'}"></span>${label}`;
+}
+window.addEventListener('online', ()=>setSyncStatus(true, 'Online'));
+window.addEventListener('offline', ()=>setSyncStatus(false, 'Offline — saved on device'));
+
+/* Storage adapter: a flat key/value store backed by Firestore, scoped to the
+   signed-in colleague (users/{uid}/kv/{key}) — so nobody can see anyone
+   else's log. Receipt photos are special-cased into Firebase Storage rather
+   than Firestore, since they're too large/numerous to sit as document
+   fields; everything else (month data, "which month is active") is small
+   JSON and behaves exactly like the old localStorage keys did. */
 const storageAdapter = (function(){
-  const LOCAL_PREFIX = 'bdm_mileage_app::';
-
-  let localError = '';
-  let sessionError = '';
-
-  let claudeError = '';
-
-  function claudeAvailable(){
-    return !!(window.storage && typeof window.storage.get === 'function');
+  function kvCol(){
+    return fbDb.collection('users').doc(currentUser.uid).collection('kv');
   }
+  function receiptRoot(){
+    return fbStorage.ref('users/' + currentUser.uid + '/receipts');
+  }
+  function docId(key){
+    return key.replace(/\//g, '_'); // Firestore doc IDs can't contain '/'
+  }
+  function isReceiptKey(key){ return key.startsWith('receipt:'); }
 
-  async function claudeWorks(){
-    // Actually test Claude storage with a real call — just checking the function exists
-    // isn't enough since it can throw "Unexpected response type" at runtime.
-    try{
-      await window.storage.get('__claude_test__');
-      return true;
-    }catch(e){
-      // "not found" is fine — storage works, the key just doesn't exist yet
-      if(e.message && (e.message.includes('not found') || e.message.includes('No data'))) return true;
-      claudeError = e.message || e.name;
-      return false;
-    }
+  function dataUrlToBlob(dataUrl){
+    const parts = dataUrl.split(',');
+    const mime = parts[0].match(/:(.*?);/)[1];
+    const bin = atob(parts[1]);
+    const arr = new Uint8Array(bin.length);
+    for(let i=0;i<bin.length;i++) arr[i] = bin.charCodeAt(i);
+    return new Blob([arr], {type: mime});
   }
-  function localAvailable(){
-    try{
-      const testKey = LOCAL_PREFIX + '__test__';
-      window.localStorage.setItem(testKey, '1');
-      const ok = window.localStorage.getItem(testKey) === '1';
-      window.localStorage.removeItem(testKey);
-      return ok;
-    }catch(e){
-      localError = e.name + ': ' + e.message;
-      try{
-        window.localStorage.removeItem(LOCAL_PREFIX + '__test__');
-        window.localStorage.setItem(LOCAL_PREFIX + '__test__', '1');
-        const ok = window.localStorage.getItem(LOCAL_PREFIX + '__test__') === '1';
-        window.localStorage.removeItem(LOCAL_PREFIX + '__test__');
-        if(ok){ localError = ''; return true; }
-      }catch(e2){ localError = e2.name + ': ' + e2.message; }
-      return false;
-    }
-  }
-  function sessionAvailable(){
-    try{
-      const testKey = LOCAL_PREFIX + '__test__';
-      window.sessionStorage.setItem(testKey, '1');
-      const ok = window.sessionStorage.getItem(testKey) === '1';
-      window.sessionStorage.removeItem(testKey);
-      return ok;
-    }catch(e){ sessionError = e.name + ': ' + e.message; return false; }
+  function blobToDataUrl(blob){
+    return new Promise((resolve, reject)=>{
+      const reader = new FileReader();
+      reader.onload = ()=>resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
   }
 
   async function get(key){
-    if(storageMode==='claude'){
-      return await window.storage.get(key);
+    if(isReceiptKey(key)){
+      const path = key.slice('receipt:'.length);
+      try{
+        const url = await receiptRoot().child(path + '.jpg').getDownloadURL();
+        const resp = await fetch(url);
+        const blob = await resp.blob();
+        const dataUrl = await blobToDataUrl(blob);
+        return { key, value: dataUrl };
+      }catch(e){
+        throw new Error('not found');
+      }
     }
-    if(storageMode==='local' || storageMode==='session'){
-      const raw = getStore().getItem(LOCAL_PREFIX + key);
-      if(raw===null) throw new Error('not found');
-      return { key, value: raw };
-    }
-    throw new Error('no storage available');
+    const snap = await kvCol().doc(docId(key)).get();
+    if(!snap.exists) throw new Error('not found');
+    return { key, value: snap.data().value };
   }
   async function set(key, value){
-    if(storageMode==='claude'){
-      return await window.storage.set(key, value);
-    }
-    if(storageMode==='local' || storageMode==='session'){
-      getStore().setItem(LOCAL_PREFIX + key, value);
+    if(isReceiptKey(key)){
+      const path = key.slice('receipt:'.length);
+      const blob = dataUrlToBlob(value);
+      await receiptRoot().child(path + '.jpg').put(blob, { contentType: 'image/jpeg' });
       return { key, value };
     }
-    throw new Error('no storage available');
+    await kvCol().doc(docId(key)).set({ key, value });
+    return { key, value };
   }
   async function del(key){
-    if(storageMode==='claude'){
-      return await window.storage.delete(key);
-    }
-    if(storageMode==='local' || storageMode==='session'){
-      if(getStore().getItem(LOCAL_PREFIX + key)===null) throw new Error('not found');
-      getStore().removeItem(LOCAL_PREFIX + key);
+    if(isReceiptKey(key)){
+      const path = key.slice('receipt:'.length);
+      try{ await receiptRoot().child(path + '.jpg').delete(); }catch(e){ /* already gone */ }
       return { key, deleted:true };
     }
-    throw new Error('no storage available');
+    await kvCol().doc(docId(key)).delete();
+    return { key, deleted:true };
   }
   async function list(prefix){
-    if(storageMode==='claude'){
-      const res = await window.storage.list(prefix);
-      return res && res.keys ? res.keys : [];
-    }
-    if(storageMode==='local' || storageMode==='session'){
-      const store = getStore();
-      const keys = [];
-      for(let i=0; i<store.length; i++){
-        const fullKey = store.key(i);
-        if(fullKey && fullKey.startsWith(LOCAL_PREFIX)){
-          const bare = fullKey.slice(LOCAL_PREFIX.length);
-          if(!prefix || bare.startsWith(prefix)) keys.push(bare);
-        }
-      }
-      return keys;
-    }
-    return [];
+    const snap = await kvCol().get();
+    return snap.docs.map(d=>d.data().key).filter(k=>k && (!prefix || k.startsWith(prefix)));
   }
-
-  async function detect(){
-    if(claudeAvailable() && await claudeWorks()){ storageMode = 'claude'; }
-    else if(localAvailable()){ storageMode = 'local'; }
-    else if(sessionAvailable()){ storageMode = 'session'; }
-    else { storageMode = 'none'; }
-    return storageMode;
-  }
-
-  function getStore(){
-    return storageMode === 'session' ? window.sessionStorage : window.localStorage;
-  }
+  async function detect(){ return 'firebase'; }
 
   return { get, set, delete: del, list, detect };
 })();
+
+/* ---------------- Auth ---------------- */
+function loginErrorMessage(e){
+  switch(e.code){
+    case 'auth/invalid-email': return 'That email address looks wrong.';
+    case 'auth/user-disabled': return 'This account has been disabled.';
+    case 'auth/user-not-found':
+    case 'auth/wrong-password':
+    case 'auth/invalid-credential': return 'Email or password is wrong.';
+    case 'auth/too-many-requests': return 'Too many attempts — try again in a few minutes.';
+    case 'auth/network-request-failed': return 'No connection — check your signal and try again.';
+    default: return 'Could not sign in — try again.';
+  }
+}
+async function doLogin(){
+  const email = document.getElementById('login_email').value.trim();
+  const pass = document.getElementById('login_pass').value;
+  const errEl = document.getElementById('loginError');
+  errEl.style.color = '';
+  errEl.textContent = '';
+  if(!email || !pass){ errEl.textContent = 'Enter your email and password.'; return; }
+  try{
+    await fbAuth.signInWithEmailAndPassword(email, pass);
+  }catch(e){
+    errEl.textContent = loginErrorMessage(e);
+  }
+}
+async function doPasswordReset(){
+  const email = document.getElementById('login_email').value.trim();
+  const errEl = document.getElementById('loginError');
+  errEl.style.color = '';
+  if(!email){ errEl.textContent = 'Enter your email above first.'; return; }
+  try{
+    await fbAuth.sendPasswordResetEmail(email);
+    errEl.style.color = 'var(--good)';
+    errEl.textContent = 'Reset email sent — check your inbox.';
+  }catch(e){
+    errEl.textContent = loginErrorMessage(e);
+  }
+}
+async function doLogout(){
+  if(!window.confirm('Log out?')) return;
+  await fbAuth.signOut();
+}
+
+fbAuth.onAuthStateChanged(user=>{
+  currentUser = user;
+  if(user){
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('app').style.display = '';
+    document.getElementById('login_email').value = '';
+    document.getElementById('login_pass').value = '';
+    document.getElementById('loginError').textContent = '';
+    setSyncStatus(navigator.onLine, navigator.onLine ? 'Online' : 'Offline — saved on device');
+    loadState();
+  } else {
+    document.getElementById('loginScreen').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
+  }
+});
 
 function monthKey(){
   return (state.meta.name || 'unnamed').trim().toLowerCase().replace(/\s+/g,'_') + ':' + state.meta.month + '_' + state.meta.year;
@@ -771,9 +871,8 @@ async function showDiagnostics(){
   const lines = [];
   lines.push('=== STORAGE DIAGNOSTICS ===');
   lines.push('Storage mode: ' + storageMode);
-  lines.push('claudeError: ' + (claudeError||'none'));
-  lines.push('localError: ' + (localError||'none'));
-  lines.push('sessionError: ' + (sessionError||'none'));
+  lines.push('Signed in as: ' + (currentUser ? currentUser.email : 'nobody'));
+  lines.push('Connection: ' + (navigator.onLine ? 'online' : 'offline (queued locally)'));
   lines.push('storageAvailable: ' + storageAvailable);
   lines.push('storageKey: ' + storageKey);
   lines.push('state.meta.name: "' + state.meta.name + '"');
@@ -808,6 +907,7 @@ async function showDiagnostics(){
 function applyStateDefaults(){
   if(!state.meta) state.meta = {};
   if(state.meta.fuelType===undefined) state.meta.fuelType = 'Petrol';
+  if(state.meta.region===undefined || state.meta.region===null || state.meta.region==='') state.meta.region = 1;
   if(!state.odo) state.odo = { start:'' };
   if(!state.reportOptions) state.reportOptions = { includeJourney:false };
   if(!Array.isArray(state.standingCharges)){
@@ -819,21 +919,13 @@ function applyStateDefaults(){
 }
 
 async function loadState(){
-  const mode = await storageAdapter.detect();
-  if(mode==='none'){
-    storageAvailable = false;
-    showStorageBanner();
-    renderMetaInputs();
-    renderAll();
-    openMetaModal(); // prompt setup even without storage
-    return;
-  }
-  if(mode==='local') showLocalModeBanner();
-  if(mode==='session') showSessionModeBanner();
   let foundData = false;
   try{
-    const idxRes = await storageAdapter.get('bdm_active_key');
-    const lastKey = idxRes ? idxRes.value : null;
+    let lastKey = null;
+    try{
+      const idxRes = await storageAdapter.get('bdm_active_key');
+      lastKey = idxRes ? idxRes.value : null;
+    }catch(e){ /* no active month yet — normal on a brand-new sign-in, not an error */ }
     if(lastKey){
       try{
         const res = await storageAdapter.get(lastKey);
@@ -871,24 +963,10 @@ async function hydrateReceipts(){
   }
 }
 
-function showStorageBanner(){
+function showStorageBanner(message){
   const b = document.getElementById('storageBanner');
   const t = document.getElementById('storageBannerText');
-  const diag = `localStorage: ${localError||'blocked (no error thrown)'} | sessionStorage: ${sessionError||'blocked (no error thrown)'}`;
-  if(t) t.textContent = `Storage unavailable — entries won't be saved. Tap × to dismiss. [Diag: ${diag}]`;
-  if(b) b.style.display = 'block';
-}
-
-function showLocalModeBanner(){
-  // Quiet — saving is working fine. Only shown when user actually saves something.
-  // Don't show on every open.
-}
-
-function showSessionModeBanner(){
-  const b = document.getElementById('storageBanner');
-  const t = document.getElementById('storageBannerText');
-  const diag = `localStorage: ${localError||'blocked (no error thrown)'}`;
-  if(t) t.textContent = `Session storage only — data won't survive closing the app. [Diag: ${diag}]`;
+  if(t) t.textContent = message || `Couldn't reach the server — entries are queued and will save once you're back online.`;
   if(b) b.style.display = 'block';
 }
 
@@ -933,6 +1011,7 @@ function closeModal(id){ document.getElementById(id).classList.remove('show'); }
 
 function renderMetaInputs(){
   document.getElementById('in_name').value = state.meta.name;
+  document.getElementById('in_region').value = state.meta.region || 1;
   document.getElementById('in_market').value = state.meta.market;
   document.getElementById('in_month').value = state.meta.month;
   document.getElementById('in_year').value = state.meta.year;
@@ -945,6 +1024,8 @@ function renderMetaInputs(){
 }
 function renderMetaDisplay(){
   document.getElementById('metaName').textContent = state.meta.name || '—';
+  document.getElementById('metaRegion').textContent = state.meta.region || '—';
+  document.getElementById('metaEmail').textContent = currentUser ? currentUser.email : '—';
   document.getElementById('metaMarket').textContent = state.meta.market || '—';
   document.getElementById('metaReg').textContent = state.meta.reg || '—';
   document.getElementById('metaEngine').textContent = state.meta.engine || '—';
@@ -968,6 +1049,7 @@ function updateOdoEndPreview(){
 async function saveMeta(){
   const oldKey = storageKey;
   state.meta.name = document.getElementById('in_name').value.trim();
+  state.meta.region = parseInt(document.getElementById('in_region').value) || 1;
   state.meta.market = document.getElementById('in_market').value.trim();
   state.meta.month = document.getElementById('in_month').value;
   state.meta.year = parseInt(document.getElementById('in_year').value) || state.meta.year;
@@ -1684,6 +1766,94 @@ function csvEscape(v){
   return /[",\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s;
 }
 
+/* ---------------- Excel expense report (fills the real company template) ---------------- */
+const XLSX_DATA_FIRST_ROW = 7;
+const XLSX_DATA_LAST_ROW = 34; // matches the template's SUM(G7:G34) formula — don't write past this
+
+function excelDateCell(isoDate){
+  return { t:'d', v: new Date(isoDate + 'T00:00:00'), z:'d-mmm' };
+}
+function excelMoneyCell(n){
+  return { t:'n', v: Math.round(n*100)/100, z:'0.00' };
+}
+function excelTextCell(s){
+  return { t:'s', v: (s===null||s===undefined) ? '' : String(s) };
+}
+
+async function exportExpenseReportXlsx(){
+  if(typeof XLSX === 'undefined'){
+    showToast('Excel export library did not load — check your connection');
+    return;
+  }
+  showToast('Building expense report…');
+  try{
+    const resp = await fetch('./expense_template.xlsx');
+    if(!resp.ok) throw new Error('Template file not found (HTTP ' + resp.status + ')');
+    const buf = await resp.arrayBuffer();
+    const wb = XLSX.read(buf, { type:'array', cellStyles:true });
+    const sheetName = wb.SheetNames[0];
+    const ws = wb.Sheets[sheetName];
+
+    function writeCell(coord, cellObj){
+      ws[coord] = Object.assign({}, ws[coord] || {}, cellObj);
+    }
+
+    // Header
+    writeCell('C2', excelTextCell(state.meta.name));
+    writeCell('C3', excelTextCell(state.meta.region || 1));
+    const monthShort = (state.meta.month || '').slice(0,3).toUpperCase();
+    const yearShort = String(state.meta.year || '').slice(-2);
+    writeCell('L2', excelTextCell(monthShort + ' ' + yearShort));
+
+    // Fuel receipts — Date / Receipt No. / Litres (A:C, rows 7-34)
+    const fuelRows = state.fuel.slice().sort((a,b)=>a.date.localeCompare(b.date));
+    let fuelOverflow = fuelRows.length > (XLSX_DATA_LAST_ROW - XLSX_DATA_FIRST_ROW + 1);
+    fuelRows.slice(0, XLSX_DATA_LAST_ROW - XLSX_DATA_FIRST_ROW + 1).forEach((e, i)=>{
+      const r = XLSX_DATA_FIRST_ROW + i;
+      writeCell('A'+r, excelDateCell(e.date));
+      writeCell('B'+r, excelTextCell(e.invoice));
+      writeCell('C'+r, { t:'n', v: e.litres });
+    });
+
+    // Expense items — Date(month text) / Description / Total (E:G, rows 7-34)
+    // Matches the template's own convention: this column carries the month
+    // name, not the specific day (see "May" against "Home Allowance").
+    const expenseRows = [];
+    state.expenses.slice().sort((a,b)=>a.date.localeCompare(b.date)).forEach(e=>{
+      expenseRows.push({ label: monthShort.charAt(0)+monthShort.slice(1).toLowerCase(), desc: e.notes, amt: e.total });
+    });
+    (state.standingCharges||[]).filter(c=>c.enabled).forEach(c=>{
+      expenseRows.push({ label: monthShort.charAt(0)+monthShort.slice(1).toLowerCase(), desc: c.label, amt: c.amount });
+    });
+    let expenseOverflow = expenseRows.length > (XLSX_DATA_LAST_ROW - XLSX_DATA_FIRST_ROW + 1);
+    expenseRows.slice(0, XLSX_DATA_LAST_ROW - XLSX_DATA_FIRST_ROW + 1).forEach((e, i)=>{
+      const r = XLSX_DATA_FIRST_ROW + i;
+      writeCell('E'+r, excelTextCell(e.label));
+      writeCell('F'+r, excelTextCell(e.desc));
+      writeCell('G'+r, excelMoneyCell(e.amt));
+    });
+    // G35's "=SUM(G7:G34)" formula is left completely untouched.
+
+    const out = XLSX.write(wb, { bookType:'xlsx', type:'array' });
+    const blob = new Blob([out], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const fname = `expense_report_${(state.meta.name||'bdm').replace(/\s+/g,'_')}_${state.meta.month}_${state.meta.year}.xlsx`;
+    a.href = url; a.download = fname;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    if(fuelOverflow || expenseOverflow){
+      showToast('Report downloaded — but you had more entries than the template has rows for, some were left off. Let Mick know and he can widen it.');
+    } else {
+      showToast('Expense report downloaded');
+    }
+  }catch(e){
+    console.error('Excel export error', e);
+    showToast('Could not build the report — ' + e.message);
+  }
+}
+
 function exportCSV(){
   const t = totals();
   const startV = parseFloat(state.odo.start);
@@ -1691,7 +1861,7 @@ function exportCSV(){
   const endV = hasOdo ? calculatedOdoEnd() : null;
   let rows = [];
   rows.push(['BDM Mileage & Expenses Log']);
-  rows.push(['BDM', state.meta.name, 'Market', state.meta.market, 'Period', state.meta.month+' '+state.meta.year, 'Reg', state.meta.reg, 'Engine', state.meta.engine, 'Fuel Type', state.meta.fuelType]);
+  rows.push(['BDM', state.meta.name, 'Region', state.meta.region, 'Market', state.meta.market, 'Period', state.meta.month+' '+state.meta.year, 'Reg', state.meta.reg, 'Engine', state.meta.engine, 'Fuel Type', state.meta.fuelType]);
   rows.push([]);
   rows.push(['MILEAGE']);
   rows.push(['Date','Office Y/N','Journey Start','Postcodes Visited','Journey End','Business Mileage','Personal Mileage','Total Mileage','Notes']);
@@ -1739,6 +1909,7 @@ function buildEmailPreview(){
   lines.push(`${state.meta.month} ${state.meta.year}`);
   lines.push(``);
   lines.push(`BDM: ${state.meta.name||'-'}`);
+  lines.push(`Region: ${state.meta.region||'-'}`);
   lines.push(`Market: ${state.meta.market||'-'}`);
   lines.push(`Vehicle: ${state.meta.reg||'-'} (${state.meta.engine||'-'}, ${state.meta.fuelType||'-'})`);
   lines.push(``);
@@ -1820,7 +1991,8 @@ function renderAll(){
   renderSummary();
 }
 
-loadState();
+// loadState() now runs from the fbAuth.onAuthStateChanged listener above,
+// once someone is actually signed in.
 </script>
 
 <script>
