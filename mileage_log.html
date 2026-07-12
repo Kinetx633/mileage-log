@@ -1117,7 +1117,6 @@ async function saveMileage(){
   const biz = parseFloat(document.getElementById('m_biz').value) || 0;
   const pers = parseFloat(document.getElementById('m_pers').value) || 0;
   if(!date){ showToast('Add a date first'); return; }
-  if(biz===0 && pers===0){ showToast('Add business or personal miles'); return; }
   const officeSel = document.getElementById('m_office_y').classList.contains('sel') ? 'Y' : 'N';
   const editId = document.getElementById('m_edit_id').value;
 
@@ -1862,8 +1861,6 @@ async function exportExpenseReportXlsx(){
 /* ---------------- Monthly mileage log (fills the day-by-day template) ---------------- */
 const MILEAGE_FIRST_ROW = 7;
 const MILEAGE_LAST_ROW = 44; // matches the template's SUM(F7:F44) etc formulas
-const WEEKEND_FILL = { type:'pattern', pattern:'solid', fgColor:{argb:'FF729FCF'} };
-const NO_FILL = { type:'pattern', pattern:'none' };
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
 function daysInMonth(year, monthIndex){ return new Date(year, monthIndex+1, 0).getDate(); }
@@ -1873,7 +1870,8 @@ async function exportMonthlyMileageXlsx(){
     showToast('Excel export library did not load — check your connection');
     return;
   }
-  const monthIndex = MONTH_NAMES.indexOf(state.meta.month);
+  const monthName = (state.meta.month || '').trim();
+  const monthIndex = MONTH_NAMES.indexOf(monthName);
   if(monthIndex === -1){
     showToast('Could not work out the month — check header details');
     return;
@@ -1897,10 +1895,10 @@ async function exportMonthlyMileageXlsx(){
     ws.getCell('H4').value = state.meta.engine;
     ws.getCell('E46').value = parseFloat(state.odo.start) || 0;
 
-    // Clear A-G for the whole data range first (never touch H — formula column)
+    // Clear A-G for the whole data range first (never touch H — formula column).
+    // No colour/fill handling for now — data accuracy first.
     for(let r = MILEAGE_FIRST_ROW; r <= MILEAGE_LAST_ROW; r++){
       ['A','B','C','D','E','F','G'].forEach(col=>{ ws.getCell(col+r).value = null; });
-      ['A','B','C','D','E','F','G','H'].forEach(col=>{ ws.getCell(col+r).fill = NO_FILL; });
     }
 
     const nDays = daysInMonth(year, monthIndex);
@@ -1923,26 +1921,38 @@ async function exportMonthlyMileageXlsx(){
       dCell.numFmt = 'mm-dd-yy';
 
       if(dow===0 || dow===6){
-        // Weekends left blank and shaded — matches your own convention (no weekend work)
-        ['A','B','C','D','E','F','G','H'].forEach(col=>{ ws.getCell(col+row).fill = WEEKEND_FILL; });
+        // Weekend — journey fields stay empty, reason noted same as sick/holiday
+        ws.getCell('D'+row).value = 'Weekend';
         continue;
       }
 
       const entries = byDate[iso];
       if(entries && entries.length){
-        const office = entries.some(e=>e.office==='Y') ? 'Y' : '';
-        const starts = [...new Set(entries.map(e=>e.start).filter(Boolean))].join(' / ');
-        const ends = [...new Set(entries.map(e=>e.end).filter(Boolean))].join(' / ');
-        const visited = [...new Set(entries.map(e=>e.postcodes).filter(Boolean))].join(' / ');
         const biz = entries.reduce((s,e)=>s+(e.biz||0),0);
         const pers = entries.reduce((s,e)=>s+(e.pers||0),0);
-        if(office) ws.getCell('B'+row).value = office;
-        if(starts) ws.getCell('C'+row).value = starts;
-        if(visited) ws.getCell('D'+row).value = visited;
-        if(ends) ws.getCell('E'+row).value = ends;
-        ws.getCell('F'+row).value = biz;
-        if(pers) ws.getCell('G'+row).value = pers;
+        const office = entries.some(e=>e.office==='Y') ? 'Y' : '';
+
+        if(biz===0 && pers===0){
+          // No actual mileage that day (sick, holiday, office-only, etc.) —
+          // journey fields stay empty, reason goes in Postcodes Visited.
+          const reasons = [...new Set(entries.map(e=>e.notes).filter(Boolean))];
+          const reason = reasons.length ? reasons.join(' / ') : (office ? 'Office' : 'No mileage');
+          ws.getCell('D'+row).value = reason;
+          if(office) ws.getCell('B'+row).value = office;
+        } else {
+          const starts = [...new Set(entries.map(e=>e.start).filter(Boolean))].join(' / ');
+          const ends = [...new Set(entries.map(e=>e.end).filter(Boolean))].join(' / ');
+          const visited = [...new Set(entries.map(e=>e.postcodes).filter(Boolean))].join(' / ');
+          if(office) ws.getCell('B'+row).value = office;
+          if(starts) ws.getCell('C'+row).value = starts;
+          if(visited) ws.getCell('D'+row).value = visited;
+          if(ends) ws.getCell('E'+row).value = ends;
+          ws.getCell('F'+row).value = biz;
+          if(pers) ws.getCell('G'+row).value = pers;
+        }
       }
+      // Weekday with no logged entry at all is left completely blank — we
+      // don't know why, so we don't guess a reason.
     }
 
     const outBuf = await workbook.xlsx.writeBuffer();
