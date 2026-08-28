@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mileage-log-v3-mileage-report';
+const CACHE_NAME = 'mileage-log-v4-mobile-redesign';
 const ASSETS = [
   './mileage_log.html',
   './manifest.json',
