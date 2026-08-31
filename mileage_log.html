@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#1C2128">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -16,88 +16,72 @@
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <style>
   :root{
-    --ink:#181C22;
-    --paper:#FAF8F3;
-    --paper-dim:#EEE8DA;
-    --amber:#EE9A4E;
-    --amber-text:#8A3E0C;
+    --ink:#1C2128;
+    --paper:#FDFBF6;
+    --paper-dim:#EFE9DC;
+    --amber:#D97D30;
+    --amber-text:#96450F;
     --amber-dim:#B8631F;
-    --slate:#454C56;
-    --line:#DBD4C5;
+    --slate:#4B5563;
+    --line:#DDD6C8;
     --line-dark:#C9C1B0;
-    --good:#1F6B32;
-    --bad:#A02D1D;
-    --tap:44px;
-    --safe-b:env(safe-area-inset-bottom, 0px);
-    --safe-t:env(safe-area-inset-top, 0px);
+    --good:#2F6B37;
+    --bad:#A13A26;
     --mono:'JetBrains Mono', 'SF Mono', 'Consolas', monospace;
     --sans:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
-  html{ -webkit-text-size-adjust:100%; }
   *{box-sizing:border-box;}
   body{
     margin:0; background:var(--paper); color:var(--ink);
     font-family:var(--sans); -webkit-font-smoothing:antialiased;
-    min-height:100vh; font-size:16px; -webkit-tap-highlight-color:transparent;
+    min-height:100vh; font-size:16px;
   }
-  button, .tab, .yn-btn, .entry-edit, .entry-del{ -webkit-tap-highlight-color:transparent; }
-  :focus-visible{ outline:2px solid var(--amber-text); outline-offset:2px; }
-  .app{ max-width:720px; margin:0 auto; padding-bottom:calc(92px + var(--safe-b)); }
-
-  /* ---------- Sticky header unit (brand + meta + tabs move together) ---------- */
-  .app-header{
-    position:sticky; top:0; z-index:20; background:var(--paper);
-    padding-top:var(--safe-t);
-  }
+  .app{ max-width:720px; margin:0 auto; padding-bottom:84px; }
 
   /* ---------- Header / instrument strip ---------- */
   .topbar{
-    background:linear-gradient(180deg, #FFFFFF 0%, #F5EFE0 100%);
+    background:linear-gradient(180deg, #FFFFFF 0%, #F7F2E6 100%);
     border-bottom:1px solid var(--line);
-    padding:16px 16px 12px;
+    padding:18px 18px 14px;
+    position:sticky; top:0; z-index:20;
   }
   .topbar-row1{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; }
-  .brand{ font-family:var(--mono); font-size:13px; letter-spacing:.1em; color:var(--amber-text); text-transform:uppercase; font-weight:700; }
-  .brand-sub{ font-family:var(--mono); font-size:13.5px; color:var(--slate); font-weight:600; }
+  .brand{ font-family:var(--mono); font-size:13px; letter-spacing:.12em; color:var(--amber-text); text-transform:uppercase; }
+  .brand-sub{ font-family:var(--mono); font-size:13px; color:var(--slate); }
   .meta-line{
-    margin-top:10px; display:grid; grid-template-columns:1fr 1fr; gap:8px 14px;
+    margin-top:10px; display:grid; grid-template-columns:1fr 1fr; gap:7px 14px;
     font-family:var(--mono); font-size:14px;
   }
-  .meta-item{ display:flex; justify-content:space-between; border-bottom:1px dashed var(--line); padding-bottom:5px; }
+  .meta-item{ display:flex; justify-content:space-between; border-bottom:1px dashed var(--line); padding-bottom:4px; }
   .meta-item span.k{ color:var(--slate); }
-  .meta-item span.v{ color:var(--ink); font-weight:700; }
-  .meta-extra{ display:none; }
-  .meta-line.expanded .meta-extra{ display:flex; }
-  .meta-toggle{
-    display:block; width:100%; text-align:center; background:none; border:none;
-    color:var(--amber-text); font-family:var(--sans); font-size:13px; font-weight:700;
-    padding:9px 4px 2px; cursor:pointer; min-height:34px;
-  }
+  .meta-item span.v{ color:var(--ink); font-weight:600; }
   .meta-edit-btn{
-    margin-top:8px; width:100%; min-height:var(--tap); background:#fff; border:1px solid var(--line);
-    color:var(--slate); font-family:var(--sans); font-size:14px; font-weight:600; padding:8px;
-    border-radius:8px; cursor:pointer;
+    margin-top:10px; width:100%; background:#fff; border:1px solid var(--line);
+    color:var(--slate); font-family:var(--sans); font-size:13.5px; padding:8px;
+    border-radius:6px; cursor:pointer;
   }
   .meta-edit-btn:active{ background:var(--paper-dim); }
 
   .storage-banner{
     display:none; background:#FFF3E0; border-bottom:1px solid var(--amber-dim);
-    color:#6E3609; font-size:13.5px; padding:10px 16px; line-height:1.4;
-    position:relative; padding-right:36px;
+    color:#7A3D0E; font-size:13px; padding:9px 16px; line-height:1.4;
+    position:relative; padding-right:34px;
   }
   .storage-banner button{
-    position:absolute; top:0; right:2px; bottom:0; width:36px; background:none; border:none;
-    color:#6E3609; font-size:19px; cursor:pointer; line-height:1;
+    position:absolute; top:5px; right:10px; background:none; border:none;
+    color:#7A3D0E; font-size:18px; cursor:pointer; line-height:1;
   }
 
   /* ---------- Tabs ---------- */
   .tabs{
     display:flex; background:#FFFFFF; border-bottom:1px solid var(--line);
+    position:sticky; top:0; z-index:19;
   }
+  .tabs.stuck{ top:0; }
   .tab{
-    flex:1; text-align:center; padding:14px 4px; font-family:var(--sans);
-    font-size:14.5px; font-weight:700; color:var(--slate); cursor:pointer;
-    border-bottom:2.5px solid transparent; letter-spacing:.01em; min-height:var(--tap);
+    flex:1; text-align:center; padding:13px 4px; font-family:var(--sans);
+    font-size:14px; font-weight:600; color:var(--slate); cursor:pointer;
+    border-bottom:2px solid transparent; letter-spacing:.01em;
   }
   .tab.active{ color:var(--amber-text); border-bottom-color:var(--amber-text); }
 
@@ -107,162 +91,144 @@
   .section.active{ display:block; }
 
   .section-title{
-    font-family:var(--mono); font-size:13.5px; letter-spacing:.08em; text-transform:uppercase;
-    color:var(--amber-text); font-weight:700; margin:4px 0 12px; display:flex; justify-content:space-between; align-items:center;
+    font-family:var(--mono); font-size:12.5px; letter-spacing:.09em; text-transform:uppercase;
+    color:var(--amber-text); margin:4px 0 12px; display:flex; justify-content:space-between; align-items:center;
   }
 
   /* ---------- Forms ---------- */
   .card{
-    background:#fff; border:1px solid var(--line); border-radius:12px;
-    padding:14px; margin-bottom:12px; box-shadow:0 1px 3px rgba(20,20,15,.06);
+    background:#fff; border:1px solid var(--line); border-radius:10px;
+    padding:14px; margin-bottom:12px; box-shadow:0 1px 2px rgba(0,0,0,.04);
   }
-  .field{ margin-bottom:14px; }
+  .field{ margin-bottom:12px; }
   .field:last-child{ margin-bottom:0; }
   .field label{
-    display:block; font-size:13.5px; color:var(--slate); margin-bottom:6px;
-    font-weight:700; letter-spacing:.01em;
+    display:block; font-size:13px; color:var(--slate); margin-bottom:5px;
+    font-weight:600; letter-spacing:.02em;
   }
   .field input, .field select, .field textarea{
-    width:100%; border:1px solid var(--line); border-radius:8px; padding:12px 12px;
+    width:100%; border:1px solid var(--line); border-radius:7px; padding:10px 11px;
     font-size:16px; font-family:var(--sans); background:var(--paper-dim); color:var(--ink);
-    min-height:var(--tap);
   }
   .field input:focus, .field select:focus, .field textarea:focus{
     outline:none; border-color:var(--amber-text); background:#fff;
-    box-shadow:0 0 0 3px rgba(138,62,12,.12);
   }
-  .field.num input{ font-family:var(--mono); font-weight:700; }
+  .field.num input{ font-family:var(--mono); font-weight:600; }
   .row2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
   .row3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
 
   .yn-toggle{ display:flex; gap:8px; }
   .yn-btn{
-    flex:1; padding:12px; min-height:var(--tap); display:flex; align-items:center; justify-content:center;
-    text-align:center; border:1px solid var(--line); border-radius:8px;
-    background:var(--paper-dim); font-size:15px; font-weight:700; color:var(--slate); cursor:pointer;
+    flex:1; padding:10px; text-align:center; border:1px solid var(--line); border-radius:7px;
+    background:var(--paper-dim); font-size:15px; font-weight:600; color:var(--slate); cursor:pointer;
   }
   .yn-btn.sel{ background:var(--ink); color:var(--amber); border-color:var(--ink); }
 
   .receipt-buttons{ display:flex; gap:8px; }
-  .receipt-btn{ font-size:14.5px; padding:12px 8px; min-height:var(--tap); }
+  .receipt-btn{ font-size:14px; padding:10px 8px; }
   .receipt-preview{
-    margin-top:9px; display:flex; align-items:center; gap:12px;
-    background:var(--paper-dim); border:1px solid var(--line); border-radius:10px; padding:10px;
+    margin-top:9px; display:flex; align-items:center; gap:10px;
+    background:var(--paper-dim); border:1px solid var(--line); border-radius:8px; padding:8px;
   }
   .receipt-preview img{
-    width:60px; height:60px; object-fit:cover; border-radius:8px; border:1px solid var(--line);
-    cursor:pointer; flex-shrink:0;
+    width:56px; height:56px; object-fit:cover; border-radius:6px; border:1px solid var(--line);
+    cursor:pointer;
   }
   .receipt-remove{
-    background:none; border:none; color:var(--bad); font-size:14.5px; font-weight:700;
-    cursor:pointer; text-decoration:underline; padding:10px 2px; min-height:var(--tap);
+    background:none; border:none; color:var(--bad); font-size:13.5px; font-weight:600;
+    cursor:pointer; text-decoration:underline; padding:0;
   }
   .receipt-thumb{
-    width:38px; height:38px; object-fit:cover; border-radius:7px; border:1px solid var(--line);
+    width:34px; height:34px; object-fit:cover; border-radius:5px; border:1px solid var(--line);
     cursor:pointer; vertical-align:middle;
   }
   .receipt-lightbox{
     position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:70; display:none;
     align-items:center; justify-content:center; padding:20px;
-    padding-bottom:calc(20px + var(--safe-b));
   }
   .receipt-lightbox.show{ display:flex; }
-  .receipt-lightbox img{ max-width:100%; max-height:90vh; border-radius:8px; }
+  .receipt-lightbox img{ max-width:100%; max-height:90vh; border-radius:6px; }
   .receipt-lightbox-close{
-    position:absolute; top:calc(16px + var(--safe-t)); right:14px; width:44px; height:44px;
-    display:flex; align-items:center; justify-content:center;
-    background:rgba(255,255,255,.12); border-radius:50%; border:none;
-    color:#fff; font-size:26px; cursor:pointer; line-height:1;
+    position:absolute; top:16px; right:18px; background:none; border:none;
+    color:#fff; font-size:28px; cursor:pointer; line-height:1;
   }
 
   .btn{
     display:inline-flex; align-items:center; justify-content:center; gap:6px;
-    padding:13px 16px; min-height:var(--tap); border-radius:9px; font-size:15.5px; font-weight:700;
+    padding:12px 16px; border-radius:8px; font-size:15px; font-weight:700;
     cursor:pointer; border:none; font-family:var(--sans); width:100%;
-    transition:opacity .12s ease;
   }
-  .btn:active{ opacity:.8; }
   .btn-primary{ background:var(--ink); color:var(--amber); }
+  .btn-primary:active{ background:#2B323E; }
   .btn-ghost{ background:#fff; border:1px solid var(--line); color:var(--ink); }
   .btn-row{ display:flex; gap:8px; margin-top:4px; }
   .btn-row .btn{ width:auto; flex:1; }
 
   /* ---------- List rows ---------- */
   .entry{
-    background:#fff; border:1px solid var(--line); border-radius:12px;
-    padding:12px 13px; margin-bottom:9px; position:relative;
+    background:#fff; border:1px solid var(--line); border-radius:10px;
+    padding:12px 13px; margin-bottom:8px; position:relative;
   }
-  .entry-top{ display:flex; justify-content:space-between; align-items:baseline; padding-right:104px; }
-  .entry-date{ font-family:var(--mono); font-size:14px; font-weight:700; color:var(--ink); }
-  .entry-tag{ font-size:12px; padding:3px 8px; border-radius:10px; background:var(--paper-dim); color:var(--slate); font-weight:700; }
-  .entry-tag.office{ background:#DEEEDF; color:var(--good); }
-  .entry-detail{ font-size:14.5px; color:var(--slate); margin-top:4px; line-height:1.4; }
-  .entry-nums{ display:flex; align-items:center; gap:14px; margin-top:8px; font-family:var(--mono); font-size:14px; flex-wrap:wrap; }
+  .entry-top{ display:flex; justify-content:space-between; align-items:baseline; padding-right:64px; }
+  .entry-date{ font-family:var(--mono); font-size:13.5px; font-weight:700; color:var(--ink); }
+  .entry-tag{ font-size:11.5px; padding:2px 7px; border-radius:10px; background:var(--paper-dim); color:var(--slate); font-weight:700; }
+  .entry-tag.office{ background:#E1EEE2; color:var(--good); }
+  .entry-detail{ font-size:14px; color:var(--slate); margin-top:4px; line-height:1.4; }
+  .entry-nums{ display:flex; align-items:center; gap:14px; margin-top:7px; font-family:var(--mono); font-size:14px; flex-wrap:wrap; }
   .entry-nums .receipt-thumb{ margin-left:auto; }
   .entry-nums b{ color:var(--ink); }
   .entry-del{
-    position:absolute; top:6px; right:6px; width:36px; height:36px;
-    display:flex; align-items:center; justify-content:center;
-    background:none; border:none; color:var(--bad); border-radius:8px;
-    font-size:21px; cursor:pointer; line-height:1;
+    position:absolute; top:10px; right:10px; background:none; border:none; color:var(--bad);
+    font-size:19px; cursor:pointer; line-height:1; padding:2px 6px;
   }
-  .entry-del:active{ background:rgba(160,45,29,.1); }
   .entry-edit{
-    position:absolute; top:6px; right:42px; height:36px; padding:0 12px;
-    display:flex; align-items:center; justify-content:center;
-    background:#fff; border:1px solid var(--line);
-    color:var(--slate); font-size:13px; font-weight:700; cursor:pointer; line-height:1;
-    border-radius:8px; font-family:var(--sans);
+    position:absolute; top:9px; right:34px; background:#fff; border:1px solid var(--line);
+    color:var(--slate); font-size:12px; font-weight:700; cursor:pointer; line-height:1;
+    padding:5px 9px; border-radius:5px; font-family:var(--sans);
   }
   .entry-edit:active{ background:var(--paper-dim); }
   .empty-state{
-    text-align:center; padding:36px 20px; color:var(--slate); font-size:15px;
+    text-align:center; padding:36px 20px; color:var(--slate); font-size:14.5px;
   }
   .empty-state .big{ font-size:28px; display:block; margin-bottom:8px; opacity:.5; }
 
   /* ---------- Totals dock ---------- */
   .dock{
     position:fixed; bottom:0; left:0; right:0; background:#FFFFFF;
-    border-top:1px solid var(--line); padding:11px 16px calc(12px + var(--safe-b));
+    border-top:1px solid var(--line); padding:10px 16px 12px;
     display:flex; z-index:30; box-shadow:0 -2px 8px rgba(0,0,0,.05);
   }
   .dock-inner{ max-width:720px; margin:0 auto; display:flex; width:100%; gap:0; }
   .dock-item{ flex:1; text-align:center; border-right:1px solid var(--line); }
   .dock-item:last-child{ border-right:none; }
-  .dock-label{ font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--slate); font-weight:600; }
-  .dock-value{ font-family:var(--mono); font-size:19px; font-weight:700; color:var(--amber-text); margin-top:2px; }
+  .dock-label{ font-size:10.5px; text-transform:uppercase; letter-spacing:.07em; color:var(--slate); }
+  .dock-value{ font-family:var(--mono); font-size:18px; font-weight:700; color:var(--amber-text); margin-top:2px; }
 
   /* ---------- Action buttons bar (report/print/export) ---------- */
   .action-bar{ display:flex; gap:8px; padding:0 16px 14px; }
-  .action-bar .btn{ font-size:14px; padding:12px 8px; }
+  .action-bar .btn{ font-size:13.5px; padding:10px 8px; }
 
   /* ---------- Summary / report styling ---------- */
   .report-block{ margin-bottom:18px; }
   .report-head{
-    font-family:var(--mono); font-size:12.5px; letter-spacing:.08em; text-transform:uppercase;
-    color:var(--slate); font-weight:700; border-bottom:1px solid var(--line); padding-bottom:6px; margin-bottom:8px;
+    font-family:var(--mono); font-size:12px; letter-spacing:.09em; text-transform:uppercase;
+    color:var(--slate); border-bottom:1px solid var(--line); padding-bottom:6px; margin-bottom:8px;
   }
-  .report-row{ display:flex; justify-content:space-between; padding:7px 0; font-size:15.5px; border-bottom:1px dashed var(--line); }
-  .report-row.total{ font-weight:800; font-size:17px; border-bottom:none; border-top:1px solid var(--ink); margin-top:4px; padding-top:9px; }
+  .report-row{ display:flex; justify-content:space-between; padding:6px 0; font-size:15px; border-bottom:1px dashed var(--line); }
+  .report-row.total{ font-weight:800; font-size:16.5px; border-bottom:none; border-top:1px solid var(--ink); margin-top:4px; padding-top:8px; }
   .report-row .v{ font-family:var(--mono); }
   .report-row .v.warn{ color:var(--bad); }
   .report-row .v.ok{ color:var(--good); }
 
-  /* Horizontally-scrollable wrapper for any wide data table, so a table
-     never forces the whole page to scroll sideways on a narrow phone. */
-  .table-scroll{
-    overflow-x:auto; -webkit-overflow-scrolling:touch;
-    margin:0 -14px; padding:0 14px 2px; border-bottom:1px solid transparent;
-  }
   .daily-log-table{
-    width:100%; min-width:520px; border-collapse:collapse; font-size:13.5px; font-family:var(--mono);
+    width:100%; border-collapse:collapse; font-size:13px; font-family:var(--mono);
   }
   .daily-log-table th{
-    text-align:left; font-family:var(--sans); font-size:12px; text-transform:uppercase;
-    letter-spacing:.03em; color:var(--slate); font-weight:700; border-bottom:1px solid var(--ink); padding:7px 8px; white-space:nowrap;
+    text-align:left; font-family:var(--sans); font-size:11.5px; text-transform:uppercase;
+    letter-spacing:.03em; color:var(--slate); border-bottom:1px solid var(--ink); padding:6px 6px;
   }
   .daily-log-table td{
-    padding:7px 8px; border-bottom:1px solid var(--line); vertical-align:top; white-space:nowrap;
+    padding:6px 6px; border-bottom:1px solid var(--line); vertical-align:top;
   }
   .daily-log-table tr:nth-child(even) td{ background:var(--paper-dim); }
 
@@ -273,29 +239,28 @@
   .modal-backdrop.show{ display:flex; }
   .modal{
     background:var(--paper); color:var(--ink); width:100%; max-width:720px;
-    border-radius:18px 18px 0 0; padding:18px 18px calc(22px + var(--safe-b)); max-height:88vh; overflow-y:auto;
+    border-radius:16px 16px 0 0; padding:18px 18px 22px; max-height:88vh; overflow-y:auto;
   }
-  .modal-title{ font-family:var(--mono); font-size:14.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--amber-text); font-weight:700; margin-bottom:14px; }
-  .modal-close{ float:right; width:36px; height:36px; display:flex; align-items:center; justify-content:center; background:none; border:none; font-size:24px; color:var(--slate); cursor:pointer; }
+  .modal-title{ font-family:var(--mono); font-size:14px; letter-spacing:.07em; text-transform:uppercase; color:var(--amber-text); margin-bottom:14px; }
+  .modal-close{ float:right; background:none; border:none; font-size:22px; color:var(--slate); cursor:pointer; }
 
   .export-opt{
-    display:flex; align-items:center; justify-content:space-between; gap:10px; padding:14px;
-    border:1px solid var(--line); border-radius:10px; margin-bottom:9px; background:#fff;
+    display:flex; align-items:center; justify-content:space-between; padding:14px 14px;
+    border:1px solid var(--line); border-radius:9px; margin-bottom:9px; background:#fff;
   }
-  .export-opt .label{ font-size:15.5px; font-weight:700; }
-  .export-opt .sub{ font-size:13px; color:var(--slate); margin-top:2px; line-height:1.35; }
+  .export-opt .label{ font-size:15px; font-weight:600; }
+  .export-opt .sub{ font-size:12.5px; color:var(--slate); margin-top:2px; }
   .export-opt button{
-    background:var(--ink); color:var(--amber); border:none; border-radius:8px;
-    padding:11px 16px; min-height:var(--tap); font-size:14px; font-weight:700; cursor:pointer; flex-shrink:0;
+    background:var(--ink); color:var(--amber); border:none; border-radius:6px;
+    padding:9px 15px; font-size:13.5px; font-weight:700; cursor:pointer;
   }
 
-  textarea#emailPreview{ font-family:var(--mono); font-size:13.5px; min-height:200px; white-space:pre; }
+  textarea#emailPreview{ font-family:var(--mono); font-size:13px; min-height:200px; white-space:pre; }
 
   .toast{
-    position:fixed; bottom:calc(100px + var(--safe-b)); left:50%; transform:translateX(-50%);
-    background:var(--ink); color:var(--amber); padding:12px 20px; border-radius:22px;
-    font-size:14.5px; font-weight:600; z-index:60; opacity:0; pointer-events:none;
-    max-width:calc(100vw - 32px); text-align:center;
+    position:fixed; bottom:96px; left:50%; transform:translateX(-50%);
+    background:var(--ink); color:var(--amber); padding:11px 19px; border-radius:20px;
+    font-size:14px; font-weight:600; z-index:60; opacity:0; pointer-events:none;
     transition:opacity .25s ease, transform .25s ease;
   }
   .toast.show{ opacity:1; transform:translateX(-50%) translateY(-6px); }
@@ -306,15 +271,15 @@
   background:var(--paper); padding:24px;
 }
 .login-box{ width:100%; max-width:340px; }
-.login-brand{ font-family:var(--mono); font-size:13.5px; letter-spacing:.1em; color:var(--amber-text); font-weight:700; text-transform:uppercase; text-align:center; margin-bottom:22px; }
+.login-brand{ font-family:var(--mono); font-size:13px; letter-spacing:.12em; color:var(--amber-text); text-transform:uppercase; text-align:center; margin-bottom:22px; }
 .login-box .card{ background:#fff; }
-.login-error{ color:var(--bad); font-size:14px; margin-top:2px; min-height:18px; }
-.login-links{ display:flex; justify-content:space-between; margin-top:6px; }
-.login-links a{ font-size:14px; color:var(--slate); text-decoration:underline; cursor:pointer; padding:10px 2px; min-height:var(--tap); display:inline-flex; align-items:center; }
+.login-error{ color:var(--bad); font-size:13.5px; margin-top:2px; min-height:16px; }
+.login-links{ display:flex; justify-content:space-between; margin-top:10px; }
+.login-links a{ font-size:13px; color:var(--slate); text-decoration:underline; cursor:pointer; }
 .logout-btn{
-  margin-top:8px; width:100%; min-height:var(--tap); background:#fff; border:1px solid var(--line);
-  color:var(--slate); font-family:var(--sans); font-size:14px; font-weight:600; padding:8px;
-  border-radius:8px; cursor:pointer;
+  margin-top:8px; width:100%; background:#fff; border:1px solid var(--line);
+  color:var(--slate); font-family:var(--sans); font-size:13px; padding:8px;
+  border-radius:6px; cursor:pointer;
 }
 .logout-btn:active{ background:var(--paper-dim); }
 .sync-dot{ display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:5px; vertical-align:middle; }
@@ -322,13 +287,11 @@
 .sync-dot.bad{ background:var(--bad); }
 @media print{
     body{ background:#fff; }
-    .app-header, .dock, .action-bar, .entry-del, .entry-edit, .meta-edit-btn, .meta-toggle, .receipt-buttons, .receipt-thumb, .storage-banner{ display:none !important; }
+    .topbar, .tabs, .dock, .action-bar, .entry-del, .entry-edit, .meta-edit-btn, .receipt-buttons, .receipt-thumb, .storage-banner{ display:none !important; }
     .panel{ background:#fff; }
     .section{ display:none !important; }
     .section.print-active{ display:block !important; }
     .card, .entry{ box-shadow:none; }
-    .table-scroll{ overflow:visible !important; margin:0; padding:0; }
-    .daily-log-table{ min-width:0; }
     .daily-log-table tr{ break-inside:avoid; }
     .daily-log-table tr:nth-child(even) td{ background:none; }
   }
@@ -355,21 +318,19 @@
 <div class="app" id="app" style="display:none;">
 
 
-  <div class="app-header">
   <div class="topbar">
     <div class="topbar-row1">
       <div class="brand">Mileage &amp; Expenses Log</div>
       <div class="brand-sub" id="monthYearTag">— / —</div>
     </div>
-    <div class="meta-line" id="metaLine">
+    <div class="meta-line">
       <div class="meta-item"><span class="k">BDM</span><span class="v" id="metaName">—</span></div>
+      <div class="meta-item"><span class="k">Region</span><span class="v" id="metaRegion">—</span></div>
+      <div class="meta-item"><span class="k">Market</span><span class="v" id="metaMarket">—</span></div>
+      <div class="meta-item"><span class="k">Reg No.</span><span class="v" id="metaReg">—</span></div>
+      <div class="meta-item"><span class="k">Engine</span><span class="v" id="metaEngine">—</span></div>
       <div class="meta-item"><span class="k">Sync</span><span class="v" id="metaSync"><span class="sync-dot ok"></span>—</span></div>
-      <div class="meta-item meta-extra"><span class="k">Region</span><span class="v" id="metaRegion">—</span></div>
-      <div class="meta-item meta-extra"><span class="k">Market</span><span class="v" id="metaMarket">—</span></div>
-      <div class="meta-item meta-extra"><span class="k">Reg No.</span><span class="v" id="metaReg">—</span></div>
-      <div class="meta-item meta-extra"><span class="k">Engine</span><span class="v" id="metaEngine">—</span></div>
     </div>
-    <button class="meta-toggle" id="metaToggleBtn" onclick="toggleMetaDetails()">More details ▾</button>
     <button class="meta-edit-btn" onclick="openMetaModal()">Edit header details</button>
     <button class="logout-btn" onclick="doLogout()">Log out (<span id="metaEmail">—</span>)</button>
   </div>
@@ -384,7 +345,6 @@
     <div class="tab" data-tab="expenses" onclick="switchTab('expenses')">Expenses</div>
     <div class="tab" data-tab="fuel" onclick="switchTab('fuel')">Fuel</div>
     <div class="tab" data-tab="summary" onclick="switchTab('summary')">Summary</div>
-  </div>
   </div>
 
   <div class="panel">
@@ -524,7 +484,7 @@
   </div>
 </div>
 
-<div class="dock" style="display:none;">
+<div class="dock">
   <div class="dock-inner">
     <div class="dock-item"><div class="dock-label">Business mi</div><div class="dock-value" id="dockBiz">0.0</div></div>
     <div class="dock-item"><div class="dock-label">Personal mi</div><div class="dock-value" id="dockPers">0.0</div></div>
@@ -588,6 +548,16 @@
     <button class="modal-close" onclick="closeModal('exportModalBackdrop')">&times;</button>
     <div class="modal-title">Export this month</div>
 
+    <div class="card" style="margin-bottom:14px;">
+      <div class="field"><label>Report date range (optional)</label></div>
+      <div class="row2">
+        <input type="date" id="range_start" placeholder="From">
+        <input type="date" id="range_end" placeholder="To">
+      </div>
+      <div style="font-size:12.5px; color:var(--slate); margin-top:8px;">Leave blank to use whatever's in the currently open month. Set both to pull entries by their actual date, wherever they were logged — useful if a month's entries ended up filed under the wrong period.</div>
+      <button class="btn btn-ghost" style="margin-top:10px; width:auto; padding:8px 14px; font-size:13px;" onclick="document.getElementById('range_start').value=''; document.getElementById('range_end').value=''; showToast('Range cleared');">Clear range</button>
+    </div>
+
     <div class="export-opt" style="border-color:var(--amber); background:#FFF8EF;">
       <div><div class="label">Expense report (.xlsx)</div><div class="sub" id="expenseReportSub">Fills your company's expense report template — ready to send off</div></div>
       <button onclick="exportExpenseReportXlsx()">Download</button>
@@ -646,7 +616,10 @@ let state = {
   meta: { name:'', region:1, market:'', month:'June', year:2026, reg:'', engine:'', fuelType:'Petrol' },
   mileage: [], expenses: [], fuel: [], odo: { start:'' },
   reportOptions: { includeJourney: false },
-  standingCharges: [ { id:'home_use', label:'Home Use', amount:18.00, enabled:true } ]
+  standingCharges: [
+    { id:'home_use', label:'Home Use', amount:18.00, enabled:true },
+    { id:'jotform_paypal', label:'Jotform/PayPal', amount:0, enabled:true }
+  ]
 };
 let storageKey = null;
 let storageAvailable = true;
@@ -679,7 +652,7 @@ function setSyncStatus(ok, label){
   if(!el) return;
   el.innerHTML = `<span class="sync-dot ${ok?'ok':'bad'}"></span>${label}`;
 }
-window.addEventListener('online', ()=>{ setSyncStatus(true, 'Online'); retryPendingReceipts(); });
+window.addEventListener('online', ()=>setSyncStatus(true, 'Online'));
 window.addEventListener('offline', ()=>setSyncStatus(false, 'Offline — saved on device'));
 
 /* Storage adapter: a flat key/value store backed by Firestore, scoped to the
@@ -722,10 +695,7 @@ const storageAdapter = (function(){
       const path = key.slice('receipt:'.length);
       try{
         const url = await receiptRoot().child(path + '.jpg').getDownloadURL();
-        const resp = await fetch(url);
-        const blob = await resp.blob();
-        const dataUrl = await blobToDataUrl(blob);
-        return { key, value: dataUrl };
+        return { key, value: url };
       }catch(e){
         throw new Error('not found');
       }
@@ -733,6 +703,14 @@ const storageAdapter = (function(){
     const snap = await kvCol().doc(docId(key)).get();
     if(!snap.exists) throw new Error('not found');
     return { key, value: snap.data().value };
+  }
+  // Only used for the full-backup export, which needs the actual image bytes
+  // (not just a link) so the backup file is self-contained.
+  async function getReceiptAsDataUrl(entryId){
+    const url = await receiptRoot().child(entryId + '.jpg').getDownloadURL();
+    const resp = await fetch(url);
+    const blob = await resp.blob();
+    return await blobToDataUrl(blob);
   }
   async function set(key, value){
     if(isReceiptKey(key)){
@@ -759,60 +737,8 @@ const storageAdapter = (function(){
   }
   async function detect(){ return 'firebase'; }
 
-  return { get, set, delete: del, list, detect };
+  return { get, set, delete: del, list, detect, getReceiptAsDataUrl };
 })();
-
-/* ---------------- Receipt upload queue (survives offline gaps) ----------------
-   Firestore has offline persistence (enablePersistence above), so entry data
-   still "saves" with no signal. Firebase Storage does not queue like that —
-   a receipt upload started with a weak connection (a fuel pump is the classic
-   case) just fails, silently, while the rest of the entry looks fine. This
-   keeps any receipt that failed to upload on the device and keeps retrying
-   until it actually lands, instead of losing the photo for good. */
-function receiptQueueKey(){
-  return 'mileageLogPendingReceipts:' + (currentUser ? currentUser.uid : 'anon');
-}
-function loadReceiptQueue(){
-  try{ return JSON.parse(localStorage.getItem(receiptQueueKey())) || {}; }
-  catch(e){ return {}; }
-}
-function saveReceiptQueue(queue){
-  try{ localStorage.setItem(receiptQueueKey(), JSON.stringify(queue)); }
-  catch(e){ /* localStorage unavailable — best effort only */ }
-}
-function queueReceiptUpload(entryId, dataUrl){
-  const queue = loadReceiptQueue();
-  queue[entryId] = dataUrl;
-  saveReceiptQueue(queue);
-  updatePendingReceiptBanner();
-}
-function dequeueReceiptUpload(entryId){
-  const queue = loadReceiptQueue();
-  if(entryId in queue){ delete queue[entryId]; saveReceiptQueue(queue); }
-  updatePendingReceiptBanner();
-}
-function updatePendingReceiptBanner(){
-  const count = Object.keys(loadReceiptQueue()).length;
-  if(count > 0){
-    showStorageBanner(`${count} receipt photo${count===1?'':'s'} waiting for signal to finish uploading — saved on this device, will sync automatically.`);
-  } else {
-    const b = document.getElementById('storageBanner');
-    if(b) b.style.display = 'none';
-  }
-}
-async function retryPendingReceipts(){
-  if(!currentUser) return;
-  const queue = loadReceiptQueue();
-  for(const entryId of Object.keys(queue)){
-    try{
-      await storageAdapter.set('receipt:' + entryId, queue[entryId]);
-      const match = [...state.expenses, ...state.fuel].find(e=>String(e.id)===String(entryId));
-      if(match) match.receipt = queue[entryId];
-      dequeueReceiptUpload(entryId);
-    }catch(e){ /* still no signal — stays queued, we'll try again later */ }
-  }
-  renderAll();
-}
 
 /* ---------------- Auth ---------------- */
 function loginErrorMessage(e){
@@ -863,7 +789,6 @@ fbAuth.onAuthStateChanged(user=>{
   if(user){
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('app').style.display = '';
-    document.querySelector('.dock').style.display = '';
     document.getElementById('login_email').value = '';
     document.getElementById('login_pass').value = '';
     document.getElementById('loginError').textContent = '';
@@ -872,7 +797,6 @@ fbAuth.onAuthStateChanged(user=>{
   } else {
     document.getElementById('loginScreen').style.display = 'flex';
     document.getElementById('app').style.display = 'none';
-    document.querySelector('.dock').style.display = 'none';
   }
 });
 
@@ -1010,7 +934,13 @@ function applyStateDefaults(){
   if(!state.odo) state.odo = { start:'' };
   if(!state.reportOptions) state.reportOptions = { includeJourney:false };
   if(!Array.isArray(state.standingCharges)){
-    state.standingCharges = [ { id:'home_use', label:'Home Use', amount:18.00, enabled:true } ];
+    state.standingCharges = [
+      { id:'home_use', label:'Home Use', amount:18.00, enabled:true },
+      { id:'jotform_paypal', label:'Jotform/PayPal', amount:0, enabled:true }
+    ];
+  }
+  if(!state.standingCharges.some(c=>c.id==='jotform_paypal')){
+    state.standingCharges.push({ id:'jotform_paypal', label:'Jotform/PayPal', amount:0, enabled:true });
   }
   if(!Array.isArray(state.mileage)) state.mileage = [];
   if(!Array.isArray(state.expenses)) state.expenses = [];
@@ -1044,7 +974,6 @@ async function loadState(){
   }
   renderMetaInputs();
   renderAll();
-  await retryPendingReceipts();
   // First run — no saved data found and no name set. Open setup modal automatically.
   if(!foundData && !state.meta.name){
     setTimeout(()=>openMetaModal(), 300);
@@ -1087,19 +1016,13 @@ async function persist(){
 
 async function persistReceipt(entryId, dataUrl){
   if(!storageAvailable) return;
-  if(dataUrl){
-    try{
+  try{
+    if(dataUrl){
       await storageAdapter.set('receipt:' + entryId, dataUrl);
-      dequeueReceiptUpload(entryId);
-    }catch(e){
-      console.error('Receipt save error — queuing for retry', e);
-      queueReceiptUpload(entryId, dataUrl);
-      showToast('No signal — receipt saved on device, will upload automatically');
+    } else {
+      try{ await storageAdapter.delete('receipt:' + entryId); }catch(e){ /* nothing to delete */ }
     }
-  } else {
-    try{ await storageAdapter.delete('receipt:' + entryId); }catch(e){ /* nothing to delete */ }
-    dequeueReceiptUpload(entryId);
-  }
+  }catch(e){ console.error('Receipt save error', e); showToast('Receipt could not be saved'); }
 }
 
 /* ---------------- Tabs ---------------- */
@@ -1128,13 +1051,6 @@ function renderMetaInputs(){
   updateOdoEndPreview();
   renderMetaDisplay();
 }
-function toggleMetaDetails(){
-  const el = document.getElementById('metaLine');
-  const btn = document.getElementById('metaToggleBtn');
-  const expanded = el.classList.toggle('expanded');
-  btn.textContent = expanded ? 'Fewer details ▴' : 'More details ▾';
-}
-
 function renderMetaDisplay(){
   document.getElementById('metaName').textContent = state.meta.name || '—';
   document.getElementById('metaRegion').textContent = state.meta.region || '—';
@@ -1567,12 +1483,12 @@ function buildFuelTable(){
       <td style="text-align:right; font-weight:700;">${fmtMoney(cost)}</td>
     </tr>`;
   }).join('');
-  return `<div class="table-scroll"><table class="daily-log-table" style="margin-bottom:8px;">
+  return `<table class="daily-log-table" style="margin-bottom:8px;">
     <thead><tr>
       <th>Date</th><th>Invoice no.</th><th style="text-align:right;">Litres</th><th style="text-align:right;">£/litre</th><th style="text-align:right;">Cost</th>
     </tr></thead>
     <tbody>${rows}</tbody>
-  </table></div>`;
+  </table>`;
 }
 
 function buildExpensesTable(){
@@ -1592,12 +1508,12 @@ function buildExpensesTable(){
       <td>Ongoing</td>
       <td style="text-align:right; font-weight:700;">${fmtMoney(c.amount)}</td>
     </tr>`).join('');
-  return `<div class="table-scroll"><table class="daily-log-table" style="margin-bottom:8px;">
+  return `<table class="daily-log-table" style="margin-bottom:8px;">
     <thead><tr>
       <th>Date</th><th>Notes</th><th>Type</th><th style="text-align:right;">Amount</th>
     </tr></thead>
     <tbody>${loggedRows}${standingRows}</tbody>
-  </table></div>`;
+  </table>`;
 }
 
 function buildDailyLogTable(){
@@ -1620,12 +1536,12 @@ function buildDailyLogTable(){
     </tr>`;
   }).join('');
   const journeyHeaders = includeJourney ? `<th>Journey start</th><th>Journey end</th>` : '';
-  return `<div class="table-scroll"><table class="daily-log-table">
+  return `<table class="daily-log-table">
     <thead><tr>
       <th>Date</th><th>Office</th><th>Postcodes visited</th>${journeyHeaders}<th style="text-align:right;">Biz mi</th><th style="text-align:right;">Pers mi</th><th style="text-align:right;">Total mi</th>
     </tr></thead>
     <tbody>${rows}</tbody>
-  </table></div>`;
+  </table>`;
 }
 
 async function toggleIncludeJourney(checked){
@@ -1813,8 +1729,8 @@ async function exportFullBackup(){
         for(const entry of all){
           if(entry.hasReceipt){
             try{
-              const rRes = await storageAdapter.get('receipt:' + entry.id);
-              if(rRes && rRes.value) entry.receipt = rRes.value;
+              const dataUrl = await storageAdapter.getReceiptAsDataUrl(entry.id);
+              if(dataUrl) entry.receipt = dataUrl;
             }catch(e){ /* receipt missing, skip */ }
           }
         }
@@ -1853,15 +1769,10 @@ async function exportFullBackup(){
 }
 
 function exportReceipts(){
-  // Fall back to the local retry queue for anything not yet synced to Storage
-  // (see retryPendingReceipts) so a monthly export never silently drops a
-  // receipt just because it hasn't finished uploading.
-  const pending = loadReceiptQueue();
   const tagged = [
     ...state.expenses.map(e=>({...e, kind:'expense'})),
     ...state.fuel.map(e=>({...e, kind:'fuel'}))
-  ].map(e => (!e.receipt && pending[e.id]) ? {...e, receipt: pending[e.id]} : e)
-   .filter(e=>e.receipt);
+  ].filter(e=>e.receipt);
 
   if(tagged.length===0){ showToast('No receipts to export'); return; }
 
@@ -1881,6 +1792,38 @@ function csvEscape(v){
   if(v===null||v===undefined) return '';
   const s = String(v);
   return /[",\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s;
+}
+
+/* ---------------- Date-range reporting (pulls entries by real date across every saved month) ---------------- */
+function getReportRange(){
+  const start = document.getElementById('range_start').value;
+  const end = document.getElementById('range_end').value;
+  if(!start || !end) return null;
+  return { start, end };
+}
+
+async function buildRangeState(range){
+  const merged = {
+    meta: state.meta, odo: state.odo, standingCharges: state.standingCharges,
+    mileage: [], expenses: [], fuel: []
+  };
+  const keys = await storageAdapter.list('bdmlog:');
+  for(const key of keys){
+    try{
+      const res = await storageAdapter.get(key);
+      if(!res || !res.value) continue;
+      const monthState = JSON.parse(res.value);
+      ['mileage','expenses','fuel'].forEach(section=>{
+        (monthState[section]||[]).forEach(e=>{
+          if(e.date >= range.start && e.date <= range.end) merged[section].push(e);
+        });
+      });
+    }catch(e){ console.error('Skipping unreadable month while building range', key, e); }
+  }
+  // Receipts referenced by these entries live in Firestore/Storage under the
+  // same ids regardless of which month document they came from, so nothing
+  // extra is needed to hydrate them — the id is all any export needs.
+  return merged;
 }
 
 /* ---------------- Excel expense report (fills the real company template) ---------------- */
@@ -1903,6 +1846,8 @@ async function exportExpenseReportXlsx(){
   }
   showToast('Building expense report…');
   try{
+    const range = getReportRange();
+    const data = range ? await buildRangeState(range) : state;
     const resp = await fetch('./expense_template.xlsx');
     if(!resp.ok) throw new Error('Template file not found (HTTP ' + resp.status + ')');
     const buf = await resp.arrayBuffer();
@@ -1912,10 +1857,17 @@ async function exportExpenseReportXlsx(){
 
     // Only .value is touched below — never .style — so every colour, border
     // and font already in the template carries straight through untouched.
-    ws.getCell('C2').value = state.meta.name;
-    ws.getCell('C3').value = state.meta.region || 1;
-    const monthShort = (state.meta.month || '').slice(0,3).toUpperCase();
-    const yearShort = String(state.meta.year || '').slice(-2);
+    ws.getCell('C2').value = data.meta.name;
+    ws.getCell('C3').value = data.meta.region || 1;
+    let monthName, headerYear;
+    if(range){
+      const [ry, rm] = range.start.split('-').map(Number);
+      monthName = MONTH_NAMES[rm-1]; headerYear = ry;
+    } else {
+      monthName = state.meta.month; headerYear = state.meta.year;
+    }
+    const monthShort = (monthName || '').slice(0,3).toUpperCase();
+    const yearShort = String(headerYear || '').slice(-2);
     ws.getCell('L2').value = monthShort + ' ' + yearShort;
 
     // Clear the full data range first — the base file may carry old data in
@@ -1927,7 +1879,7 @@ async function exportExpenseReportXlsx(){
 
     // Fuel receipts — Date / Receipt No. / Litres (A:C, rows 7-34)
     const maxRows = XLSX_DATA_LAST_ROW - XLSX_DATA_FIRST_ROW + 1;
-    const fuelRows = state.fuel.slice().sort((a,b)=>a.date.localeCompare(b.date));
+    const fuelRows = data.fuel.slice().sort((a,b)=>a.date.localeCompare(b.date));
     const fuelOverflow = fuelRows.length > maxRows;
     fuelRows.slice(0, maxRows).forEach((e, i)=>{
       const r = XLSX_DATA_FIRST_ROW + i;
@@ -1943,10 +1895,10 @@ async function exportExpenseReportXlsx(){
     // name, not the specific day (see "May" against "Home Allowance").
     const monthLabel = monthShort.charAt(0) + monthShort.slice(1).toLowerCase();
     const expenseRows = [];
-    state.expenses.slice().sort((a,b)=>a.date.localeCompare(b.date)).forEach(e=>{
+    data.expenses.slice().sort((a,b)=>a.date.localeCompare(b.date)).forEach(e=>{
       expenseRows.push({ desc: e.notes, amt: e.total });
     });
-    (state.standingCharges||[]).filter(c=>c.enabled).forEach(c=>{
+    (data.standingCharges||[]).filter(c=>c.enabled).forEach(c=>{
       expenseRows.push({ desc: c.label, amt: c.amount });
     });
     const expenseOverflow = expenseRows.length > maxRows;
@@ -1964,7 +1916,7 @@ async function exportExpenseReportXlsx(){
     const blob = new Blob([outBuf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    const fname = `expense_report_${(state.meta.name||'bdm').replace(/\s+/g,'_')}_${state.meta.month}_${state.meta.year}.xlsx`;
+    const fname = `expense_report_${(data.meta.name||'bdm').replace(/\s+/g,'_')}_${monthName}_${headerYear}.xlsx`;
     a.href = url; a.download = fname;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
@@ -1992,7 +1944,15 @@ async function exportMonthlyMileageXlsx(){
     showToast('Excel export library did not load — check your connection');
     return;
   }
-  const monthName = (state.meta.month || '').trim();
+  const range = getReportRange();
+  const data = range ? await buildRangeState(range) : state;
+  let monthName, year;
+  if(range){
+    const [ry, rm] = range.start.split('-').map(Number);
+    monthName = MONTH_NAMES[rm-1]; year = ry;
+  } else {
+    monthName = (state.meta.month || '').trim(); year = state.meta.year;
+  }
   const monthIndex = MONTH_NAMES.indexOf(monthName);
   if(monthIndex === -1){
     showToast('Could not work out the month — check header details');
@@ -2007,15 +1967,14 @@ async function exportMonthlyMileageXlsx(){
     await workbook.xlsx.load(buf);
     const ws = workbook.worksheets[0];
 
-    const year = state.meta.year;
-    ws.getCell('B3').value = state.meta.name;
+    ws.getCell('B3').value = data.meta.name;
     const monthCell = ws.getCell('E3');
     monthCell.value = new Date(Date.UTC(year, monthIndex, 1));
     monthCell.numFmt = 'mmm-yy';
-    ws.getCell('B4').value = state.meta.reg;
-    ws.getCell('E4').value = state.meta.fuelType;
-    ws.getCell('H4').value = state.meta.engine;
-    ws.getCell('E46').value = parseFloat(state.odo.start) || 0;
+    ws.getCell('B4').value = data.meta.reg;
+    ws.getCell('E4').value = data.meta.fuelType;
+    ws.getCell('H4').value = data.meta.engine;
+    ws.getCell('E46').value = parseFloat(data.odo.start) || 0;
 
     // Clear A-G for the whole data range first (never touch H — formula column).
     // Also strip any fill baked into the template (the source file has June's
@@ -2030,7 +1989,7 @@ async function exportMonthlyMileageXlsx(){
     const overflow = nDays > (MILEAGE_LAST_ROW - MILEAGE_FIRST_ROW + 1);
 
     const byDate = {};
-    state.mileage.forEach(e=>{
+    data.mileage.forEach(e=>{
       if(!byDate[e.date]) byDate[e.date] = [];
       byDate[e.date].push(e);
     });
@@ -2083,7 +2042,7 @@ async function exportMonthlyMileageXlsx(){
     const blob = new Blob([outBuf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    const fname = `mileage_log_${(state.meta.name||'bdm').replace(/\s+/g,'_')}_${state.meta.month}_${state.meta.year}.xlsx`;
+    const fname = `mileage_log_${(data.meta.name||'bdm').replace(/\s+/g,'_')}_${monthName}_${year}.xlsx`;
     a.href = url; a.download = fname;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
@@ -2099,18 +2058,30 @@ async function exportMonthlyMileageXlsx(){
   }
 }
 
-function exportCSV(){
-  const t = totals();
-  const startV = parseFloat(state.odo.start);
-  const hasOdo = !isNaN(startV);
+async function exportCSV(){
+  const range = getReportRange();
+  const data = range ? await buildRangeState(range) : state;
+  const biz = data.mileage.reduce((s,e)=>s+e.biz,0);
+  const pers = data.mileage.reduce((s,e)=>s+e.pers,0);
+  const loggedExpTotal = data.expenses.reduce((s,e)=>s+e.total,0);
+  const standingTotal = (data.standingCharges||[]).filter(c=>c.enabled).reduce((s,c)=>s+c.amount,0);
+  const fuelLitres = data.fuel.reduce((s,e)=>s+e.litres,0);
+  const fuelCost = data.fuel.reduce((s,e)=>s+e.litres*e.price,0);
+  const t = {
+    biz, pers, totalMi: biz+pers, loggedExpTotal, standingTotal,
+    expTotal: loggedExpTotal+standingTotal, fuelLitres, fuelCost,
+    grandTotal: (loggedExpTotal+standingTotal) + fuelCost
+  };
+  const startV = parseFloat(data.odo.start);
+  const hasOdo = !range && !isNaN(startV); // odo running-total only makes sense for the live open month
   const endV = hasOdo ? calculatedOdoEnd() : null;
   let rows = [];
   rows.push(['BDM Mileage & Expenses Log']);
-  rows.push(['BDM', state.meta.name, 'Region', state.meta.region, 'Market', state.meta.market, 'Period', state.meta.month+' '+state.meta.year, 'Reg', state.meta.reg, 'Engine', state.meta.engine, 'Fuel Type', state.meta.fuelType]);
+  rows.push(['BDM', data.meta.name, 'Region', data.meta.region, 'Market', data.meta.market, 'Period', range ? (range.start+' to '+range.end) : (state.meta.month+' '+state.meta.year), 'Reg', data.meta.reg, 'Engine', data.meta.engine, 'Fuel Type', data.meta.fuelType]);
   rows.push([]);
   rows.push(['MILEAGE']);
   rows.push(['Date','Office Y/N','Journey Start','Postcodes Visited','Journey End','Business Mileage','Personal Mileage','Total Mileage','Notes']);
-  state.mileage.forEach(e=>rows.push([e.date, e.office, e.start, e.postcodes, e.end, e.biz, e.pers, (e.biz+e.pers).toFixed(1), e.notes]));
+  data.mileage.forEach(e=>rows.push([e.date, e.office, e.start, e.postcodes, e.end, e.biz, e.pers, (e.biz+e.pers).toFixed(1), e.notes]));
   rows.push(['','','','','','Odometer start', hasOdo?startV:'', 'Odometer end', hasOdo?endV.toFixed(1):'']);
   rows.push(['','','','','','Total Business', t.biz.toFixed(1), 'Total Personal', t.pers.toFixed(1)]);
   rows.push(['','','','','','TOTAL MILEAGE', t.totalMi.toFixed(1)]);
@@ -2118,13 +2089,13 @@ function exportCSV(){
   rows.push(['EXPENSES']);
   rows.push(['BDM','Date','Notes','Type','Expense Total','Running Total','Receipt']);
   let running=0;
-  state.expenses.forEach(e=>{ running+=e.total; rows.push([state.meta.name, e.date, e.notes, 'Logged', e.total.toFixed(2), running.toFixed(2), e.receipt ? 'Yes' : 'No']); });
-  (state.standingCharges||[]).filter(c=>c.enabled).forEach(c=>{ running+=c.amount; rows.push([state.meta.name, 'Every month', c.label, 'Ongoing', c.amount.toFixed(2), running.toFixed(2), '']); });
+  data.expenses.forEach(e=>{ running+=e.total; rows.push([data.meta.name, e.date, e.notes, 'Logged', e.total.toFixed(2), running.toFixed(2), e.receipt ? 'Yes' : 'No']); });
+  (data.standingCharges||[]).filter(c=>c.enabled).forEach(c=>{ running+=c.amount; rows.push([data.meta.name, 'Every month', c.label, 'Ongoing', c.amount.toFixed(2), running.toFixed(2), '']); });
   rows.push(['','','','TOTAL OTHER EXPENSES', t.expTotal.toFixed(2)]);
   rows.push([]);
   rows.push(['FUEL']);
   rows.push(['Date','Invoice No.','Litres','Price per Litre','Total Cost','Receipt']);
-  state.fuel.forEach(e=>rows.push([e.date, e.invoice, e.litres.toFixed(2), e.price.toFixed(3), (e.litres*e.price).toFixed(2), e.receipt ? 'Yes' : 'No']));
+  data.fuel.forEach(e=>rows.push([e.date, e.invoice, e.litres.toFixed(2), e.price.toFixed(3), (e.litres*e.price).toFixed(2), e.receipt ? 'Yes' : 'No']));
   rows.push(['','','TOTAL LITRES', t.fuelLitres.toFixed(2)]);
   rows.push(['','','TOTAL FUEL COST', t.fuelCost.toFixed(2)]);
   rows.push([]);
@@ -2137,7 +2108,9 @@ function exportCSV(){
   const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  const fname = `mileage_log_${(state.meta.name||'bdm').replace(/\s+/g,'_')}_${state.meta.month}_${state.meta.year}.csv`;
+  const fname = range
+    ? `mileage_log_${(data.meta.name||'bdm').replace(/\s+/g,'_')}_${range.start}_to_${range.end}.csv`
+    : `mileage_log_${(state.meta.name||'bdm').replace(/\s+/g,'_')}_${state.meta.month}_${state.meta.year}.csv`;
   a.href = url; a.download = fname;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
