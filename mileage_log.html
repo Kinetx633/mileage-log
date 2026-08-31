@@ -321,8 +321,17 @@
   <div class="topbar">
     <div class="topbar-row1">
       <div class="brand">Mileage &amp; Expenses Log</div>
-      <div class="brand-sub" id="monthYearTag">— / —</div>
     </div>
+    <div style="display:flex; align-items:center; gap:6px; margin-top:8px;">
+      <span style="font-family:var(--mono); font-size:11px; color:var(--slate); text-transform:uppercase; letter-spacing:.06em;">Viewing</span>
+      <select id="view_month" onchange="switchViewMonth()" style="flex:1; padding:8px 6px; border:1px solid var(--line); border-radius:6px; font-size:14px; font-family:var(--sans); font-weight:700; background:#fff; color:var(--ink);">
+        <option>January</option><option>February</option><option>March</option><option>April</option>
+        <option>May</option><option>June</option><option>July</option><option>August</option>
+        <option>September</option><option>October</option><option>November</option><option>December</option>
+      </select>
+      <input type="number" id="view_year" onchange="switchViewMonth()" style="width:76px; padding:8px 6px; border:1px solid var(--line); border-radius:6px; font-size:14px; font-family:var(--sans); font-weight:700;">
+    </div>
+    <div style="font-size:11.5px; color:var(--slate); margin-top:4px;">New entries file themselves under whichever month their own date belongs to — this just controls what you're looking at.</div>
     <div class="meta-line">
       <div class="meta-item"><span class="k">BDM</span><span class="v" id="metaName">—</span></div>
       <div class="meta-item"><span class="k">Region</span><span class="v" id="metaRegion">—</span></div>
@@ -505,16 +514,7 @@
       </select>
     </div>
     <div class="field"><label>Market</label><input type="text" id="in_market" placeholder="Enter market/region"></div>
-    <div class="row2">
-      <div class="field"><label>Month</label>
-        <select id="in_month">
-          <option>January</option><option>February</option><option>March</option><option>April</option>
-          <option>May</option><option>June</option><option>July</option><option>August</option>
-          <option>September</option><option>October</option><option>November</option><option>December</option>
-        </select>
-      </div>
-      <div class="field num"><label>Year</label><input type="number" id="in_year" placeholder="2026"></div>
-    </div>
+    <div style="font-size:12px; color:var(--slate); margin:-4px 0 12px;">Month/Year moved to the main page — use the "Viewing" switcher there.</div>
     <div class="field"><label>Vehicle registration</label><input type="text" id="in_reg" placeholder="e.g. AB12 CDE" oninput="forceUpper(this)" style="text-transform:uppercase;"></div>
     <div class="row2">
       <div class="field"><label>Engine size</label><input type="text" id="in_engine" placeholder="e.g. 1.6L"></div>
@@ -1042,8 +1042,8 @@ function renderMetaInputs(){
   document.getElementById('in_name').value = state.meta.name;
   document.getElementById('in_region').value = state.meta.region || 1;
   document.getElementById('in_market').value = state.meta.market;
-  document.getElementById('in_month').value = state.meta.month;
-  document.getElementById('in_year').value = state.meta.year;
+  document.getElementById('view_month').value = state.meta.month;
+  document.getElementById('view_year').value = state.meta.year;
   document.getElementById('in_reg').value = state.meta.reg;
   document.getElementById('in_engine').value = state.meta.engine;
   document.getElementById('in_fuel_type').value = state.meta.fuelType || 'Petrol';
@@ -1058,7 +1058,8 @@ function renderMetaDisplay(){
   document.getElementById('metaMarket').textContent = state.meta.market || '—';
   document.getElementById('metaReg').textContent = state.meta.reg || '—';
   document.getElementById('metaEngine').textContent = state.meta.engine || '—';
-  document.getElementById('monthYearTag').textContent = (state.meta.month||'—') + ' ' + (state.meta.year||'');
+  document.getElementById('view_month').value = state.meta.month || 'June';
+  document.getElementById('view_year').value = state.meta.year || new Date().getFullYear();
 }
 
 function calculatedOdoEnd(){
@@ -1075,13 +1076,43 @@ function updateOdoEndPreview(){
   display.value = fmtMi(startVal + totals().totalMi);
 }
 
+async function switchViewMonth(){
+  const newMonth = document.getElementById('view_month').value;
+  const newYear = parseInt(document.getElementById('view_year').value) || state.meta.year;
+  if(newMonth === state.meta.month && newYear === state.meta.year) return;
+
+  const oldKey = 'bdmlog:' + monthKey();
+  state.meta.month = newMonth;
+  state.meta.year = newYear;
+  const newKey = 'bdmlog:' + monthKey();
+
+  if(newKey !== oldKey && storageAvailable){
+    try{
+      const res = await storageAdapter.get(newKey);
+      if(res && res.value){
+        const loadedMeta = state.meta, loadedOdo = state.odo, loadedStandingCharges = state.standingCharges;
+        state = JSON.parse(res.value);
+        applyStateDefaults();
+        state.meta = loadedMeta; state.odo = loadedOdo; state.standingCharges = loadedStandingCharges;
+        await hydrateReceipts();
+      } else {
+        state.mileage = []; state.expenses = []; state.fuel = [];
+      }
+    }catch(e){
+      state.mileage = []; state.expenses = []; state.fuel = [];
+    }
+  }
+  renderMetaDisplay();
+  renderAll();
+  await persist();
+  showToast(`Viewing ${newMonth} ${newYear}`);
+}
+
 async function saveMeta(){
   const oldKey = storageKey;
   state.meta.name = document.getElementById('in_name').value.trim();
   state.meta.region = parseInt(document.getElementById('in_region').value) || 1;
   state.meta.market = document.getElementById('in_market').value.trim();
-  state.meta.month = document.getElementById('in_month').value;
-  state.meta.year = parseInt(document.getElementById('in_year').value) || state.meta.year;
   state.meta.reg = document.getElementById('in_reg').value.trim().toUpperCase();
   state.meta.engine = document.getElementById('in_engine').value.trim();
   state.meta.fuelType = document.getElementById('in_fuel_type').value;
@@ -1136,6 +1167,63 @@ function fmtDate(iso){
   return d.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
 }
 
+/* ---------------- Auto-filing: entries are saved under whichever month
+   their own date belongs to, not just whatever's currently open on screen ---------------- */
+function periodKeyFor(monthName, year){
+  return 'bdmlog:' + (state.meta.name || 'unnamed').trim().toLowerCase().replace(/\s+/g,'_') + ':' + monthName + '_' + year;
+}
+
+async function routeEntrySave(section, record, editId){
+  const [ey, em] = record.date.split('-').map(Number);
+  const targetMonthName = MONTH_NAMES[em-1];
+  const targetYear = ey;
+  const targetKey = periodKeyFor(targetMonthName, targetYear);
+  const activeKey = 'bdmlog:' + monthKey();
+
+  // If this was an edit of something already showing on screen, take it out
+  // of the currently open month first — it may be moving elsewhere if the
+  // date changed.
+  let removedFromLocal = false;
+  if(editId){
+    const idx = state[section].findIndex(e=>e.id===parseInt(editId));
+    if(idx>-1){ state[section].splice(idx,1); removedFromLocal = true; }
+  }
+
+  if(targetKey === activeKey){
+    state[section].push(record);
+    state[section].sort((a,b)=>a.date.localeCompare(b.date));
+    await persist();
+    return { movedAway:false };
+  }
+
+  // Belongs to a different month — file it there directly, without touching
+  // what's currently on screen.
+  let targetDoc = null;
+  try{
+    const res = await storageAdapter.get(targetKey);
+    if(res && res.value) targetDoc = JSON.parse(res.value);
+  }catch(e){ /* no existing document for that month yet — start fresh below */ }
+  if(!targetDoc){
+    targetDoc = {
+      meta: Object.assign({}, state.meta, { month: targetMonthName, year: targetYear }),
+      odo: { start: '' },
+      standingCharges: JSON.parse(JSON.stringify(state.standingCharges||[])),
+      mileage: [], expenses: [], fuel: []
+    };
+  }
+  if(!Array.isArray(targetDoc[section])) targetDoc[section] = [];
+  const tIdx = targetDoc[section].findIndex(e=>e.id===record.id);
+  if(tIdx>-1) targetDoc[section][tIdx] = record; else targetDoc[section].push(record);
+  targetDoc[section].sort((a,b)=>a.date.localeCompare(b.date));
+
+  const slimTarget = JSON.parse(JSON.stringify(targetDoc));
+  ['expenses','fuel'].forEach(sec=>{ (slimTarget[sec]||[]).forEach(e=>{ e.hasReceipt = !!e.receipt; delete e.receipt; }); });
+  await storageAdapter.set(targetKey, JSON.stringify(slimTarget));
+  await storageAdapter.set('bdm_active_key', activeKey); // keep the currently open month as "active", not the one we just filed into
+  if(removedFromLocal) await persist(); // the entry was removed from the local view above — save that removal too
+  return { movedAway:true, targetMonthName, targetYear };
+}
+
 async function saveMileage(){
   const date = document.getElementById('m_date').value;
   const biz = parseFloat(document.getElementById('m_biz').value) || 0;
@@ -1150,21 +1238,18 @@ async function saveMileage(){
     end: document.getElementById('m_end').value.trim().toUpperCase(),
     postcodes: document.getElementById('m_postcodes').value.trim().toUpperCase(),
     biz, pers,
-    notes: document.getElementById('m_notes').value.trim()
+    notes: document.getElementById('m_notes').value.trim(),
+    id: editId ? parseInt(editId) : Date.now()
   };
 
-  if(editId){
-    const idx = state.mileage.findIndex(e=>e.id===parseInt(editId));
-    if(idx>-1){ record.id = state.mileage[idx].id; state.mileage[idx] = record; }
-  } else {
-    record.id = Date.now();
-    state.mileage.push(record);
-  }
-  state.mileage.sort((a,b)=> a.date.localeCompare(b.date));
+  const result = await routeEntrySave('mileage', record, editId);
   cancelMileageEdit();
-  await persist();
   renderAll();
-  showToast(editId ? 'Mileage entry updated' : 'Mileage entry added');
+  if(result.movedAway){
+    showToast(`Saved to ${result.targetMonthName} ${result.targetYear} — that's what this date belongs to`);
+  } else {
+    showToast(editId ? 'Mileage entry updated' : 'Mileage entry added');
+  }
 }
 
 function editMileage(id){
@@ -1293,22 +1378,19 @@ async function saveExpense(){
   const editId = document.getElementById('e_edit_id').value;
   const record = {
     date, notes: document.getElementById('e_notes').value.trim(), total,
-    receipt: pendingReceipt.e
+    receipt: pendingReceipt.e,
+    id: editId ? parseInt(editId) : Date.now()
   };
 
-  if(editId){
-    const idx = state.expenses.findIndex(e=>e.id===parseInt(editId));
-    if(idx>-1){ record.id = state.expenses[idx].id; state.expenses[idx] = record; }
-  } else {
-    record.id = Date.now();
-    state.expenses.push(record);
-  }
-  state.expenses.sort((a,b)=> a.date.localeCompare(b.date));
+  const result = await routeEntrySave('expenses', record, editId);
+  await persistReceipt(record.id, record.receipt); // receipts live per-entry-id regardless of which month the entry's filed under
   cancelExpenseEdit();
-  await persist();
-  await persistReceipt(record.id, record.receipt);
   renderAll();
-  showToast(editId ? 'Expense updated' : 'Expense added');
+  if(result.movedAway){
+    showToast(`Saved to ${result.targetMonthName} ${result.targetYear} — that's what this date belongs to`);
+  } else {
+    showToast(editId ? 'Expense updated' : 'Expense added');
+  }
 }
 
 function editExpense(id){
@@ -1373,22 +1455,19 @@ async function saveFuel(){
   const editId = document.getElementById('f_edit_id').value;
   const record = {
     date, invoice: document.getElementById('f_invoice').value.trim(), litres, price,
-    receipt: pendingReceipt.f
+    receipt: pendingReceipt.f,
+    id: editId ? parseInt(editId) : Date.now()
   };
 
-  if(editId){
-    const idx = state.fuel.findIndex(e=>e.id===parseInt(editId));
-    if(idx>-1){ record.id = state.fuel[idx].id; state.fuel[idx] = record; }
-  } else {
-    record.id = Date.now();
-    state.fuel.push(record);
-  }
-  state.fuel.sort((a,b)=> a.date.localeCompare(b.date));
-  cancelFuelEdit();
-  await persist();
+  const result = await routeEntrySave('fuel', record, editId);
   await persistReceipt(record.id, record.receipt);
+  cancelFuelEdit();
   renderAll();
-  showToast(editId ? 'Fuel entry updated' : 'Fuel entry added');
+  if(result.movedAway){
+    showToast(`Saved to ${result.targetMonthName} ${result.targetYear} — that's what this date belongs to`);
+  } else {
+    showToast(editId ? 'Fuel entry updated' : 'Fuel entry added');
+  }
 }
 
 function editFuel(id){
@@ -2004,8 +2083,13 @@ async function exportMonthlyMileageXlsx(){
       dCell.numFmt = 'mm-dd-yy';
 
       if(dow===0 || dow===6){
-        // Weekend — journey fields stay empty, reason noted same as sick/holiday
+        // Weekend — no journey, but every field still gets a value rather than being left blank.
+        ws.getCell('B'+row).value = '-';
+        ws.getCell('C'+row).value = '-';
         ws.getCell('D'+row).value = 'Weekend';
+        ws.getCell('E'+row).value = '-';
+        ws.getCell('F'+row).value = 0;
+        ws.getCell('G'+row).value = 0;
         continue;
       }
 
@@ -2017,25 +2101,35 @@ async function exportMonthlyMileageXlsx(){
 
         if(biz===0 && pers===0){
           // No actual mileage that day (sick, holiday, office-only, etc.) —
-          // journey fields stay empty, reason goes in Postcodes Visited.
+          // journey fields show a hyphen, reason goes in Postcodes Visited.
           const reasons = [...new Set(entries.map(e=>e.notes).filter(Boolean))];
           const reason = reasons.length ? reasons.join(' / ') : (office ? 'Office' : 'No mileage');
+          ws.getCell('B'+row).value = office || '-';
+          ws.getCell('C'+row).value = '-';
           ws.getCell('D'+row).value = reason;
-          if(office) ws.getCell('B'+row).value = office;
+          ws.getCell('E'+row).value = '-';
+          ws.getCell('F'+row).value = 0;
+          ws.getCell('G'+row).value = 0;
         } else {
           const starts = [...new Set(entries.map(e=>e.start).filter(Boolean))].join(' / ');
           const ends = [...new Set(entries.map(e=>e.end).filter(Boolean))].join(' / ');
           const visited = [...new Set(entries.map(e=>e.postcodes).filter(Boolean))].join(' / ');
-          if(office) ws.getCell('B'+row).value = office;
-          if(starts) ws.getCell('C'+row).value = starts;
-          if(visited) ws.getCell('D'+row).value = visited;
-          if(ends) ws.getCell('E'+row).value = ends;
+          ws.getCell('B'+row).value = office || '-';
+          ws.getCell('C'+row).value = starts || '-';
+          ws.getCell('D'+row).value = visited || '-';
+          ws.getCell('E'+row).value = ends || '-';
           ws.getCell('F'+row).value = biz;
-          if(pers) ws.getCell('G'+row).value = pers;
+          ws.getCell('G'+row).value = pers;
         }
+      } else {
+        // Weekday with nothing logged at all — still gets a full row.
+        ws.getCell('B'+row).value = '-';
+        ws.getCell('C'+row).value = '-';
+        ws.getCell('D'+row).value = '-';
+        ws.getCell('E'+row).value = '-';
+        ws.getCell('F'+row).value = 0;
+        ws.getCell('G'+row).value = 0;
       }
-      // Weekday with no logged entry at all is left completely blank — we
-      // don't know why, so we don't guess a reason.
     }
 
     const outBuf = await workbook.xlsx.writeBuffer();
