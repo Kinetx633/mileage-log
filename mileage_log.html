@@ -514,6 +514,8 @@
       </select>
     </div>
     <div class="field"><label>Market</label><input type="text" id="in_market" placeholder="Enter market/region"></div>
+    <div class="field"><label>Home postcode</label><input type="text" id="in_home_postcode" placeholder="e.g. OL2 7SG" oninput="forceUpper(this)" style="text-transform:uppercase;"></div>
+    <div style="font-size:12px; color:var(--slate); margin:-4px 0 12px;">Fills in Journey start/end on new mileage entries automatically — you can still overwrite it per entry.</div>
     <div style="font-size:12px; color:var(--slate); margin:-4px 0 12px;">Month/Year moved to the main page — use the "Viewing" switcher there.</div>
     <div class="field"><label>Vehicle registration</label><input type="text" id="in_reg" placeholder="e.g. AB12 CDE" oninput="forceUpper(this)" style="text-transform:uppercase;"></div>
     <div class="row2">
@@ -613,7 +615,7 @@
 <script>
 /* ---------------- State & persistence ---------------- */
 let state = {
-  meta: { name:'', region:1, market:'', month:'June', year:2026, reg:'', engine:'', fuelType:'Petrol' },
+  meta: { name:'', region:1, market:'', month:'June', year:2026, reg:'', engine:'', fuelType:'Petrol', homePostcode:'' },
   mileage: [], expenses: [], fuel: [], odo: { start:'' },
   reportOptions: { includeJourney: false },
   standingCharges: [
@@ -931,6 +933,7 @@ function applyStateDefaults(){
   if(!state.meta) state.meta = {};
   if(state.meta.fuelType===undefined) state.meta.fuelType = 'Petrol';
   if(state.meta.region===undefined || state.meta.region===null || state.meta.region==='') state.meta.region = 1;
+  if(state.meta.homePostcode===undefined) state.meta.homePostcode = '';
   if(!state.odo) state.odo = { start:'' };
   if(!state.reportOptions) state.reportOptions = { includeJourney:false };
   if(!Array.isArray(state.standingCharges)){
@@ -1042,6 +1045,7 @@ function renderMetaInputs(){
   document.getElementById('in_name').value = state.meta.name;
   document.getElementById('in_region').value = state.meta.region || 1;
   document.getElementById('in_market').value = state.meta.market;
+  document.getElementById('in_home_postcode').value = state.meta.homePostcode || '';
   document.getElementById('view_month').value = state.meta.month;
   document.getElementById('view_year').value = state.meta.year;
   document.getElementById('in_reg').value = state.meta.reg;
@@ -1060,6 +1064,7 @@ function renderMetaDisplay(){
   document.getElementById('metaEngine').textContent = state.meta.engine || '—';
   document.getElementById('view_month').value = state.meta.month || 'June';
   document.getElementById('view_year').value = state.meta.year || new Date().getFullYear();
+  prefillMileageJourney();
 }
 
 function calculatedOdoEnd(){
@@ -1113,6 +1118,7 @@ async function saveMeta(){
   state.meta.name = document.getElementById('in_name').value.trim();
   state.meta.region = parseInt(document.getElementById('in_region').value) || 1;
   state.meta.market = document.getElementById('in_market').value.trim();
+  state.meta.homePostcode = document.getElementById('in_home_postcode').value.trim().toUpperCase();
   state.meta.reg = document.getElementById('in_reg').value.trim().toUpperCase();
   state.meta.engine = document.getElementById('in_engine').value.trim();
   state.meta.fuelType = document.getElementById('in_fuel_type').value;
@@ -1271,6 +1277,16 @@ function editMileage(id){
   document.querySelector('.section[data-section="mileage"] .card').scrollIntoView({behavior:'smooth', block:'start'});
 }
 
+function prefillMileageJourney(){
+  if(document.getElementById('m_edit_id').value) return; // don't touch an entry that's actively being edited
+  const home = state.meta.homePostcode || '';
+  if(!home) return;
+  const startEl = document.getElementById('m_start');
+  const endEl = document.getElementById('m_end');
+  if(!startEl.value.trim()) startEl.value = home;
+  if(!endEl.value.trim()) endEl.value = home;
+}
+
 function cancelMileageEdit(){
   document.getElementById('m_edit_id').value = '';
   ['m_date','m_start','m_end','m_postcodes','m_biz','m_pers','m_notes'].forEach(id=>document.getElementById(id).value='');
@@ -1278,6 +1294,7 @@ function cancelMileageEdit(){
   document.getElementById('mileageFormTitle').textContent = 'Add daily entry';
   document.getElementById('m_submit_btn').textContent = 'Add entry';
   document.getElementById('m_cancel_btn').style.display = 'none';
+  prefillMileageJourney();
 }
 
 async function deleteMileage(id){
