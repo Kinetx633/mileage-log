@@ -528,8 +528,13 @@
       </div>
     </div>
     <div class="row2">
-      <div class="field num"><label>Odometer - start of month</label><input type="number" step="1" id="in_odo_start" placeholder="0" oninput="updateOdoEndPreview()"></div>
-      <div class="field num"><label>Odometer - end of month</label><input type="text" id="in_odo_end_display" placeholder="—" disabled style="background:var(--line); color:var(--slate);"></div>
+      <div class="field num"><label>Odometer - start of month</label>
+        <div style="display:flex; gap:8px;">
+          <input type="number" step="1" id="in_odo_start" placeholder="0" disabled style="background:var(--paper-dim); color:var(--slate);">
+          <button type="button" class="btn btn-ghost" style="width:auto; flex:0 0 auto; padding:10px 14px;" onclick="unlockOdoStart()">🔒 Unlock</button>
+        </div>
+        <div style="font-size:12px; color:var(--slate); margin-top:5px;">Carries over automatically from last month's end reading. Unlock with your PIN only if it needs correcting.</div>
+      </div>
     </div>
     <div class="field" style="margin-top:-4px;"><span style="font-size:11px; color:var(--slate);">End of month is calculated automatically: start + total mileage logged.</span></div>
     <button class="btn btn-primary" onclick="saveMeta()">Save details</button>
@@ -1062,7 +1067,9 @@ function renderMetaInputs(){
   document.getElementById('in_engine').value = state.meta.engine;
   document.getElementById('in_fuel_type').value = state.meta.fuelType || 'Petrol';
   document.getElementById('in_odo_start').value = state.odo.start || '';
-  updateOdoEndPreview();
+  document.getElementById('in_odo_start').disabled = true;
+  document.getElementById('in_odo_start').style.background = 'var(--paper-dim)';
+  document.getElementById('in_odo_start').style.color = 'var(--slate)';
   renderMetaDisplay();
 }
 function renderMetaDisplay(){
@@ -1083,12 +1090,47 @@ function calculatedOdoEnd(){
   return start + totals().totalMi;
 }
 
-function updateOdoEndPreview(){
-  // Uses the in-modal start value live (may not be saved yet) plus the currently logged total mileage.
-  const startVal = parseFloat(document.getElementById('in_odo_start').value);
-  const display = document.getElementById('in_odo_end_display');
-  if(isNaN(startVal)){ display.value = '—'; return; }
-  display.value = fmtMi(startVal + totals().totalMi);
+async function unlockOdoStart(){
+  let storedPin = null;
+  try{
+    const res = await storageAdapter.get('odo_pin');
+    storedPin = res && res.value;
+  }catch(e){ /* no pin set yet */ }
+
+  if(!storedPin){
+    const p1 = prompt('No PIN set yet. Choose a PIN to protect the odometer reading from now on:');
+    if(!p1) return;
+    const p2 = prompt('Enter it again to confirm:');
+    if(p1 !== p2){ showToast('PINs did not match — try again'); return; }
+    await storageAdapter.set('odo_pin', p1);
+    showToast('PIN set');
+  } else {
+    const attempt = prompt('Enter your PIN to unlock the odometer reading:');
+    if(attempt === null) return;
+    if(attempt !== storedPin){ showToast('Wrong PIN'); return; }
+  }
+
+  const field = document.getElementById('in_odo_start');
+  field.disabled = false;
+  field.style.background = '';
+  field.style.color = '';
+  field.focus();
+}
+
+async function getPreviousMonthEndOdo(monthName, year){
+  const idx = MONTH_NAMES.indexOf(monthName);
+  let prevIdx = idx - 1, prevYear = year;
+  if(prevIdx < 0){ prevIdx = 11; prevYear = year - 1; }
+  const prevKey = periodKeyFor(MONTH_NAMES[prevIdx], prevYear);
+  try{
+    const res = await storageAdapter.get(prevKey);
+    if(!res || !res.value) return null;
+    const prevDoc = JSON.parse(res.value);
+    const startV = parseFloat(prevDoc.odo && prevDoc.odo.start);
+    if(isNaN(startV)) return null;
+    const total = (prevDoc.mileage||[]).reduce((s,e)=>s+(e.biz||0)+(e.pers||0),0);
+    return startV + total;
+  }catch(e){ return null; }
 }
 
 async function switchViewMonth(){
@@ -1105,13 +1147,16 @@ async function switchViewMonth(){
     try{
       const res = await storageAdapter.get(newKey);
       if(res && res.value){
-        const loadedMeta = state.meta, loadedOdo = state.odo, loadedStandingCharges = state.standingCharges;
+        const loadedMeta = state.meta, loadedStandingCharges = state.standingCharges;
         state = JSON.parse(res.value);
         applyStateDefaults();
-        state.meta = loadedMeta; state.odo = loadedOdo; state.standingCharges = loadedStandingCharges;
+        state.meta = loadedMeta; state.standingCharges = loadedStandingCharges;
+        // state.odo is left as whatever this month's own document already had saved.
         await hydrateReceipts();
       } else {
         state.mileage = []; state.expenses = []; state.fuel = [];
+        const carriedEnd = await getPreviousMonthEndOdo(newMonth, newYear);
+        state.odo = { start: carriedEnd !== null ? carriedEnd : '' };
       }
     }catch(e){
       state.mileage = []; state.expenses = []; state.fuel = [];
@@ -1220,9 +1265,10 @@ async function routeEntrySave(section, record, editId){
     if(res && res.value) targetDoc = JSON.parse(res.value);
   }catch(e){ /* no existing document for that month yet — start fresh below */ }
   if(!targetDoc){
+    const carriedEnd = await getPreviousMonthEndOdo(targetMonthName, targetYear);
     targetDoc = {
       meta: Object.assign({}, state.meta, { month: targetMonthName, year: targetYear }),
-      odo: { start: '' },
+      odo: { start: carriedEnd !== null ? carriedEnd : '' },
       standingCharges: JSON.parse(JSON.stringify(state.standingCharges||[])),
       mileage: [], expenses: [], fuel: []
     };
@@ -1852,7 +1898,10 @@ async function exportMonthPackZip(){
       try{
         const blob = await storageAdapter.getReceiptBlob(entry.id);
         receiptFolder.file(`${entry.kind}_${entry.date}_${entry.id}.jpg`, blob);
-      }catch(e){ receiptFailures++; }
+      }catch(e){
+        receiptFailures++;
+        console.error('Month pack: receipt fetch failed for', entry.kind, entry.id, entry.date, '—', e.name, e.message);
+      }
     }
 
     const zipBlob = await zip.generateAsync({ type:'blob' });
