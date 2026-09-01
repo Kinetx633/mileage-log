@@ -14,6 +14,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-storage-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <style>
   :root{
     --ink:#0B2545;
@@ -561,6 +562,10 @@
     </div>
 
     <div class="export-opt" style="border-color:var(--amber); background:#EAFFF0;">
+      <div><div class="label">Full month pack (.zip)</div><div class="sub">Both official reports plus every receipt photo — one file, ready to email to head office</div></div>
+      <button onclick="exportMonthPackZip()">Download</button>
+    </div>
+    <div class="export-opt" style="border-color:var(--amber); background:#EAFFF0;">
       <div><div class="label">Expense report (.xlsx)</div><div class="sub" id="expenseReportSub">Fills your company's expense report template — ready to send off</div></div>
       <button onclick="exportExpenseReportXlsx()">Download</button>
     </div>
@@ -714,6 +719,11 @@ const storageAdapter = (function(){
     const blob = await resp.blob();
     return await blobToDataUrl(blob);
   }
+  async function getReceiptBlob(entryId){
+    const url = await receiptRoot().child(entryId + '.jpg').getDownloadURL();
+    const resp = await fetch(url);
+    return await resp.blob();
+  }
   async function set(key, value){
     if(isReceiptKey(key)){
       const path = key.slice('receipt:'.length);
@@ -739,7 +749,7 @@ const storageAdapter = (function(){
   }
   async function detect(){ return 'firebase'; }
 
-  return { get, set, delete: del, list, detect, getReceiptAsDataUrl };
+  return { get, set, delete: del, list, detect, getReceiptAsDataUrl, getReceiptBlob };
 })();
 
 /* ---------------- Auth ---------------- */
@@ -1807,6 +1817,64 @@ async function restoreFromBackup(backup){
   }
 }
 
+async function exportMonthPackZip(){
+  if(typeof JSZip === 'undefined'){
+    showToast('Zip library did not load — check your connection');
+    return;
+  }
+  if(typeof ExcelJS === 'undefined'){
+    showToast('Excel export library did not load — check your connection');
+    return;
+  }
+  showToast('Building the month pack…');
+  try{
+    const range = getReportRange();
+    const data = range ? await buildRangeState(range) : state;
+
+    const [expenseResult, mileageResult] = await Promise.all([
+      buildExpenseReportBuffer(data, range),
+      buildMileageReportBuffer(data, range)
+    ]);
+
+    const zip = new JSZip();
+    zip.file(expenseResult.fname, expenseResult.buffer);
+    zip.file(mileageResult.fname, mileageResult.buffer);
+
+    // Every receipt attached to an expense or fuel entry in this data set,
+    // fetched fresh from Storage and dropped into their own folder.
+    const receiptFolder = zip.folder('receipts');
+    const withReceipts = [
+      ...data.expenses.filter(e=>e.hasReceipt || e.receipt).map(e=>({...e, kind:'expense'})),
+      ...data.fuel.filter(e=>e.hasReceipt || e.receipt).map(e=>({...e, kind:'fuel'}))
+    ];
+    let receiptFailures = 0;
+    for(const entry of withReceipts){
+      try{
+        const blob = await storageAdapter.getReceiptBlob(entry.id);
+        receiptFolder.file(`${entry.kind}_${entry.date}_${entry.id}.jpg`, blob);
+      }catch(e){ receiptFailures++; }
+    }
+
+    const zipBlob = await zip.generateAsync({ type:'blob' });
+    const url = URL.createObjectURL(zipBlob);
+    const a = document.createElement('a');
+    let label;
+    if(range){ label = `${range.start}_to_${range.end}`; }
+    else { label = `${state.meta.month}_${state.meta.year}`; }
+    a.href = url;
+    a.download = `month_pack_${(data.meta.name||'bdm').replace(/\s+/g,'_')}_${label}.zip`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    const overflowNote = (expenseResult.overflow || mileageResult.overflow) ? ' (some rows overflowed the templates — let Mick know)' : '';
+    const receiptNote = receiptFailures ? ` — ${receiptFailures} receipt${receiptFailures===1?'':'s'} couldn't be fetched` : '';
+    showToast(`Month pack downloaded: both reports + ${withReceipts.length - receiptFailures} receipt${withReceipts.length===1?'':'s'}${overflowNote}${receiptNote}`);
+  }catch(e){
+    console.error('Month pack error', e);
+    showToast('Could not build the month pack — ' + e.message);
+  }
+}
+
 async function exportFullBackup(){
   showToast('Preparing full backup…');
   try{
@@ -1935,6 +2003,76 @@ function excelSafeDate(isoDateStr){
   return new Date(Date.UTC(y, m-1, d));
 }
 
+async function buildExpenseReportBuffer(data, range){
+  const resp = await fetch('./expense_template.xlsx');
+  if(!resp.ok) throw new Error('Template file not found (HTTP ' + resp.status + ')');
+  const buf = await resp.arrayBuffer();
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buf);
+  const ws = workbook.worksheets[0];
+
+  // Only .value is touched below — never .style — so every colour, border
+  // and font already in the template carries straight through untouched.
+  ws.getCell('C2').value = data.meta.name;
+  ws.getCell('C3').value = data.meta.region || 1;
+  let monthName, headerYear;
+  if(range){
+    const [ry, rm] = range.start.split('-').map(Number);
+    monthName = MONTH_NAMES[rm-1]; headerYear = ry;
+  } else {
+    monthName = state.meta.month; headerYear = state.meta.year;
+  }
+  const monthShort = (monthName || '').slice(0,3).toUpperCase();
+  const yearShort = String(headerYear || '').slice(-2);
+  ws.getCell('L2').value = monthShort + ' ' + yearShort;
+
+  // Clear the full data range first — the base file may carry old data in
+  // rows we're not about to write to this time (e.g. fewer entries than
+  // last time filled), so blank the whole block before writing fresh.
+  for(let r = XLSX_DATA_FIRST_ROW; r <= XLSX_DATA_LAST_ROW; r++){
+    ['A','B','C','E','F','G'].forEach(col => { ws.getCell(col+r).value = null; });
+  }
+
+  // Fuel receipts — Date / Receipt No. / Litres (A:C, rows 7-34)
+  const maxRows = XLSX_DATA_LAST_ROW - XLSX_DATA_FIRST_ROW + 1;
+  const fuelRows = data.fuel.slice().sort((a,b)=>a.date.localeCompare(b.date));
+  const fuelOverflow = fuelRows.length > maxRows;
+  fuelRows.slice(0, maxRows).forEach((e, i)=>{
+    const r = XLSX_DATA_FIRST_ROW + i;
+    const dateCell = ws.getCell('A'+r);
+    dateCell.value = excelSafeDate(e.date);
+    if(!dateCell.numFmt) dateCell.numFmt = 'd-mmm';
+    ws.getCell('B'+r).value = e.invoice || '';
+    ws.getCell('C'+r).value = e.litres;
+  });
+
+  // Expense items — Date(month text) / Description / Total (E:G, rows 7-34)
+  // Matches the template's own convention: this column carries the month
+  // name, not the specific day (see "May" against "Home Allowance").
+  const monthLabel = monthShort.charAt(0) + monthShort.slice(1).toLowerCase();
+  const expenseRows = [];
+  data.expenses.slice().sort((a,b)=>a.date.localeCompare(b.date)).forEach(e=>{
+    expenseRows.push({ desc: e.notes, amt: e.total });
+  });
+  (data.standingCharges||[]).filter(c=>c.enabled).forEach(c=>{
+    expenseRows.push({ desc: c.label, amt: c.amount });
+  });
+  const expenseOverflow = expenseRows.length > maxRows;
+  expenseRows.slice(0, maxRows).forEach((e, i)=>{
+    const r = XLSX_DATA_FIRST_ROW + i;
+    ws.getCell('E'+r).value = monthLabel;
+    ws.getCell('F'+r).value = e.desc || '';
+    const amtCell = ws.getCell('G'+r);
+    amtCell.value = Math.round(e.amt*100)/100;
+    if(!amtCell.numFmt) amtCell.numFmt = '0.00';
+  });
+  // G35's "=SUM(G7:G34)" formula is never touched.
+
+  const outBuf = await workbook.xlsx.writeBuffer();
+  const fname = `expense_report_${(data.meta.name||'bdm').replace(/\s+/g,'_')}_${monthName}_${headerYear}.xlsx`;
+  return { buffer: outBuf, overflow: fuelOverflow || expenseOverflow, fname };
+}
+
 async function exportExpenseReportXlsx(){
   if(typeof ExcelJS === 'undefined'){
     showToast('Excel export library did not load — check your connection');
@@ -1944,80 +2082,15 @@ async function exportExpenseReportXlsx(){
   try{
     const range = getReportRange();
     const data = range ? await buildRangeState(range) : state;
-    const resp = await fetch('./expense_template.xlsx');
-    if(!resp.ok) throw new Error('Template file not found (HTTP ' + resp.status + ')');
-    const buf = await resp.arrayBuffer();
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(buf);
-    const ws = workbook.worksheets[0];
-
-    // Only .value is touched below — never .style — so every colour, border
-    // and font already in the template carries straight through untouched.
-    ws.getCell('C2').value = data.meta.name;
-    ws.getCell('C3').value = data.meta.region || 1;
-    let monthName, headerYear;
-    if(range){
-      const [ry, rm] = range.start.split('-').map(Number);
-      monthName = MONTH_NAMES[rm-1]; headerYear = ry;
-    } else {
-      monthName = state.meta.month; headerYear = state.meta.year;
-    }
-    const monthShort = (monthName || '').slice(0,3).toUpperCase();
-    const yearShort = String(headerYear || '').slice(-2);
-    ws.getCell('L2').value = monthShort + ' ' + yearShort;
-
-    // Clear the full data range first — the base file may carry old data in
-    // rows we're not about to write to this time (e.g. fewer entries than
-    // last time filled), so blank the whole block before writing fresh.
-    for(let r = XLSX_DATA_FIRST_ROW; r <= XLSX_DATA_LAST_ROW; r++){
-      ['A','B','C','E','F','G'].forEach(col => { ws.getCell(col+r).value = null; });
-    }
-
-    // Fuel receipts — Date / Receipt No. / Litres (A:C, rows 7-34)
-    const maxRows = XLSX_DATA_LAST_ROW - XLSX_DATA_FIRST_ROW + 1;
-    const fuelRows = data.fuel.slice().sort((a,b)=>a.date.localeCompare(b.date));
-    const fuelOverflow = fuelRows.length > maxRows;
-    fuelRows.slice(0, maxRows).forEach((e, i)=>{
-      const r = XLSX_DATA_FIRST_ROW + i;
-      const dateCell = ws.getCell('A'+r);
-      dateCell.value = excelSafeDate(e.date);
-      if(!dateCell.numFmt) dateCell.numFmt = 'd-mmm';
-      ws.getCell('B'+r).value = e.invoice || '';
-      ws.getCell('C'+r).value = e.litres;
-    });
-
-    // Expense items — Date(month text) / Description / Total (E:G, rows 7-34)
-    // Matches the template's own convention: this column carries the month
-    // name, not the specific day (see "May" against "Home Allowance").
-    const monthLabel = monthShort.charAt(0) + monthShort.slice(1).toLowerCase();
-    const expenseRows = [];
-    data.expenses.slice().sort((a,b)=>a.date.localeCompare(b.date)).forEach(e=>{
-      expenseRows.push({ desc: e.notes, amt: e.total });
-    });
-    (data.standingCharges||[]).filter(c=>c.enabled).forEach(c=>{
-      expenseRows.push({ desc: c.label, amt: c.amount });
-    });
-    const expenseOverflow = expenseRows.length > maxRows;
-    expenseRows.slice(0, maxRows).forEach((e, i)=>{
-      const r = XLSX_DATA_FIRST_ROW + i;
-      ws.getCell('E'+r).value = monthLabel;
-      ws.getCell('F'+r).value = e.desc || '';
-      const amtCell = ws.getCell('G'+r);
-      amtCell.value = Math.round(e.amt*100)/100;
-      if(!amtCell.numFmt) amtCell.numFmt = '0.00';
-    });
-    // G35's "=SUM(G7:G34)" formula is never touched.
-
-    const outBuf = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([outBuf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const { buffer, overflow, fname } = await buildExpenseReportBuffer(data, range);
+    const blob = new Blob([buffer], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    const fname = `expense_report_${(data.meta.name||'bdm').replace(/\s+/g,'_')}_${monthName}_${headerYear}.xlsx`;
     a.href = url; a.download = fname;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
 
-    if(fuelOverflow || expenseOverflow){
+    if(overflow){
       showToast('Report downloaded — but you had more entries than the template has rows for, some were left off. Let Mick know and he can widen it.');
     } else {
       showToast('Expense report downloaded');
@@ -2035,13 +2108,7 @@ const MONTH_NAMES = ['January','February','March','April','May','June','July','A
 
 function daysInMonth(year, monthIndex){ return new Date(year, monthIndex+1, 0).getDate(); }
 
-async function exportMonthlyMileageXlsx(){
-  if(typeof ExcelJS === 'undefined'){
-    showToast('Excel export library did not load — check your connection');
-    return;
-  }
-  const range = getReportRange();
-  const data = range ? await buildRangeState(range) : state;
+async function buildMileageReportBuffer(data, range){
   let monthName, year;
   if(range){
     const [ry, rm] = range.start.split('-').map(Number);
@@ -2051,122 +2118,132 @@ async function exportMonthlyMileageXlsx(){
   }
   const monthIndex = MONTH_NAMES.indexOf(monthName);
   if(monthIndex === -1){
-    showToast('Could not work out the month — check header details');
+    throw new Error('Could not work out the month — check header details');
+  }
+  const resp = await fetch('./monthly_mileage_template.xlsx');
+  if(!resp.ok) throw new Error('Template file not found (HTTP ' + resp.status + ')');
+  const buf = await resp.arrayBuffer();
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buf);
+  const ws = workbook.worksheets[0];
+
+  ws.getCell('B3').value = data.meta.name;
+  const monthCell = ws.getCell('E3');
+  monthCell.value = new Date(Date.UTC(year, monthIndex, 1));
+  monthCell.numFmt = 'mmm-yy';
+  ws.getCell('B4').value = data.meta.reg;
+  ws.getCell('E4').value = data.meta.fuelType;
+  ws.getCell('H4').value = data.meta.engine;
+  ws.getCell('E46').value = parseFloat(data.odo.start) || 0;
+
+  // Clear values for the whole data range first (never touch H — formula column).
+  for(let r = MILEAGE_FIRST_ROW; r <= MILEAGE_LAST_ROW; r++){
+    ['A','B','C','D','E','F','G'].forEach(col=>{ ws.getCell(col+r).value = null; });
+  }
+
+  // Fill is set separately, in one pass per row, further down — setting it
+  // twice (clear-to-none, then recolour some rows) triggers a real ExcelJS
+  // bug where cells that end up sharing an identical "no fill" style also
+  // share the same underlying style object, so recolouring one of them
+  // recolours all of them. Setting each cell's final colour exactly once,
+  // via a freshly-built style object rather than mutating .fill directly,
+  // avoids that entirely.
+  function setRowFill(row, argbOrNull){
+    const fill = argbOrNull ? { type:'pattern', pattern:'solid', fgColor:{argb:argbOrNull} } : { type:'pattern', pattern:'none' };
+    ['A','B','C','D','E','F','G','H'].forEach(col=>{
+      const cell = ws.getCell(col+row);
+      cell.style = Object.assign({}, cell.style, { fill });
+    });
+  }
+  for(let r = MILEAGE_FIRST_ROW; r <= MILEAGE_LAST_ROW; r++){ setRowFill(r, null); }
+
+  const nDays = daysInMonth(year, monthIndex);
+  const overflow = nDays > (MILEAGE_LAST_ROW - MILEAGE_FIRST_ROW + 1);
+
+  const byDate = {};
+  data.mileage.forEach(e=>{
+    if(!byDate[e.date]) byDate[e.date] = [];
+    byDate[e.date].push(e);
+  });
+
+  for(let day=1; day<=nDays; day++){
+    const row = MILEAGE_FIRST_ROW + day - 1;
+    const iso = year + '-' + String(monthIndex+1).padStart(2,'0') + '-' + String(day).padStart(2,'0');
+    const dow = new Date(Date.UTC(year, monthIndex, day)).getUTCDay(); // 0=Sun, 6=Sat
+
+    const dCell = ws.getCell('A'+row);
+    dCell.value = new Date(Date.UTC(year, monthIndex, day));
+    dCell.numFmt = 'mm-dd-yy';
+
+    if(dow===0 || dow===6){
+      // Weekend — no journey, but every field still gets a value rather than being left blank.
+      setRowFill(row, 'FF729FCF');
+      ws.getCell('B'+row).value = '-';
+      ws.getCell('C'+row).value = '-';
+      ws.getCell('D'+row).value = 'Weekend';
+      ws.getCell('E'+row).value = '-';
+      ws.getCell('F'+row).value = 0;
+      ws.getCell('G'+row).value = 0;
+      continue;
+    }
+
+    const entries = byDate[iso];
+    if(entries && entries.length){
+      const biz = entries.reduce((s,e)=>s+(e.biz||0),0);
+      const pers = entries.reduce((s,e)=>s+(e.pers||0),0);
+      const office = entries.some(e=>e.office==='Y') ? 'Y' : '';
+
+      if(biz===0 && pers===0){
+        // No actual mileage that day (sick, holiday, office-only, etc.) —
+        // journey fields show a hyphen, reason goes in Postcodes Visited.
+        const reasons = [...new Set(entries.map(e=>e.notes).filter(Boolean))];
+        const reason = reasons.length ? reasons.join(' / ') : (office ? 'Office' : 'No mileage');
+        ws.getCell('B'+row).value = office || '-';
+        ws.getCell('C'+row).value = '-';
+        ws.getCell('D'+row).value = reason;
+        ws.getCell('E'+row).value = '-';
+        ws.getCell('F'+row).value = 0;
+        ws.getCell('G'+row).value = 0;
+      } else {
+        const starts = [...new Set(entries.map(e=>e.start).filter(Boolean))].join(' / ');
+        const ends = [...new Set(entries.map(e=>e.end).filter(Boolean))].join(' / ');
+        const visited = [...new Set(entries.map(e=>e.postcodes).filter(Boolean))].join(' / ');
+        ws.getCell('B'+row).value = office || '-';
+        ws.getCell('C'+row).value = starts || '-';
+        ws.getCell('D'+row).value = visited || '-';
+        ws.getCell('E'+row).value = ends || '-';
+        ws.getCell('F'+row).value = biz;
+        ws.getCell('G'+row).value = pers;
+      }
+    } else {
+      // Weekday with nothing logged at all — still gets a full row.
+      ws.getCell('B'+row).value = '-';
+      ws.getCell('C'+row).value = '-';
+      ws.getCell('D'+row).value = '-';
+      ws.getCell('E'+row).value = '-';
+      ws.getCell('F'+row).value = 0;
+      ws.getCell('G'+row).value = 0;
+    }
+  }
+
+  const outBuf = await workbook.xlsx.writeBuffer();
+  const fname = `mileage_log_${(data.meta.name||'bdm').replace(/\s+/g,'_')}_${monthName}_${year}.xlsx`;
+  return { buffer: outBuf, overflow, fname };
+}
+
+async function exportMonthlyMileageXlsx(){
+  if(typeof ExcelJS === 'undefined'){
+    showToast('Excel export library did not load — check your connection');
     return;
   }
   showToast('Building mileage log…');
   try{
-    const resp = await fetch('./monthly_mileage_template.xlsx');
-    if(!resp.ok) throw new Error('Template file not found (HTTP ' + resp.status + ')');
-    const buf = await resp.arrayBuffer();
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(buf);
-    const ws = workbook.worksheets[0];
-
-    ws.getCell('B3').value = data.meta.name;
-    const monthCell = ws.getCell('E3');
-    monthCell.value = new Date(Date.UTC(year, monthIndex, 1));
-    monthCell.numFmt = 'mmm-yy';
-    ws.getCell('B4').value = data.meta.reg;
-    ws.getCell('E4').value = data.meta.fuelType;
-    ws.getCell('H4').value = data.meta.engine;
-    ws.getCell('E46').value = parseFloat(data.odo.start) || 0;
-
-    // Clear values for the whole data range first (never touch H — formula column).
-    for(let r = MILEAGE_FIRST_ROW; r <= MILEAGE_LAST_ROW; r++){
-      ['A','B','C','D','E','F','G'].forEach(col=>{ ws.getCell(col+r).value = null; });
-    }
-
-    // Fill is set separately, in one pass per row, further down — setting it
-    // twice (clear-to-none, then recolour some rows) triggers a real ExcelJS
-    // bug where cells that end up sharing an identical "no fill" style also
-    // share the same underlying style object, so recolouring one of them
-    // recolours all of them. Setting each cell's final colour exactly once,
-    // via a freshly-built style object rather than mutating .fill directly,
-    // avoids that entirely.
-    function setRowFill(row, argbOrNull){
-      const fill = argbOrNull ? { type:'pattern', pattern:'solid', fgColor:{argb:argbOrNull} } : { type:'pattern', pattern:'none' };
-      ['A','B','C','D','E','F','G','H'].forEach(col=>{
-        const cell = ws.getCell(col+row);
-        cell.style = Object.assign({}, cell.style, { fill });
-      });
-    }
-    for(let r = MILEAGE_FIRST_ROW; r <= MILEAGE_LAST_ROW; r++){ setRowFill(r, null); }
-
-    const nDays = daysInMonth(year, monthIndex);
-    const overflow = nDays > (MILEAGE_LAST_ROW - MILEAGE_FIRST_ROW + 1);
-
-    const byDate = {};
-    data.mileage.forEach(e=>{
-      if(!byDate[e.date]) byDate[e.date] = [];
-      byDate[e.date].push(e);
-    });
-
-    for(let day=1; day<=nDays; day++){
-      const row = MILEAGE_FIRST_ROW + day - 1;
-      const iso = year + '-' + String(monthIndex+1).padStart(2,'0') + '-' + String(day).padStart(2,'0');
-      const dow = new Date(Date.UTC(year, monthIndex, day)).getUTCDay(); // 0=Sun, 6=Sat
-
-      const dCell = ws.getCell('A'+row);
-      dCell.value = new Date(Date.UTC(year, monthIndex, day));
-      dCell.numFmt = 'mm-dd-yy';
-
-      if(dow===0 || dow===6){
-        // Weekend — no journey, but every field still gets a value rather than being left blank.
-        setRowFill(row, 'FF729FCF');
-        ws.getCell('B'+row).value = '-';
-        ws.getCell('C'+row).value = '-';
-        ws.getCell('D'+row).value = 'Weekend';
-        ws.getCell('E'+row).value = '-';
-        ws.getCell('F'+row).value = 0;
-        ws.getCell('G'+row).value = 0;
-        continue;
-      }
-
-      const entries = byDate[iso];
-      if(entries && entries.length){
-        const biz = entries.reduce((s,e)=>s+(e.biz||0),0);
-        const pers = entries.reduce((s,e)=>s+(e.pers||0),0);
-        const office = entries.some(e=>e.office==='Y') ? 'Y' : '';
-
-        if(biz===0 && pers===0){
-          // No actual mileage that day (sick, holiday, office-only, etc.) —
-          // journey fields show a hyphen, reason goes in Postcodes Visited.
-          const reasons = [...new Set(entries.map(e=>e.notes).filter(Boolean))];
-          const reason = reasons.length ? reasons.join(' / ') : (office ? 'Office' : 'No mileage');
-          ws.getCell('B'+row).value = office || '-';
-          ws.getCell('C'+row).value = '-';
-          ws.getCell('D'+row).value = reason;
-          ws.getCell('E'+row).value = '-';
-          ws.getCell('F'+row).value = 0;
-          ws.getCell('G'+row).value = 0;
-        } else {
-          const starts = [...new Set(entries.map(e=>e.start).filter(Boolean))].join(' / ');
-          const ends = [...new Set(entries.map(e=>e.end).filter(Boolean))].join(' / ');
-          const visited = [...new Set(entries.map(e=>e.postcodes).filter(Boolean))].join(' / ');
-          ws.getCell('B'+row).value = office || '-';
-          ws.getCell('C'+row).value = starts || '-';
-          ws.getCell('D'+row).value = visited || '-';
-          ws.getCell('E'+row).value = ends || '-';
-          ws.getCell('F'+row).value = biz;
-          ws.getCell('G'+row).value = pers;
-        }
-      } else {
-        // Weekday with nothing logged at all — still gets a full row.
-        ws.getCell('B'+row).value = '-';
-        ws.getCell('C'+row).value = '-';
-        ws.getCell('D'+row).value = '-';
-        ws.getCell('E'+row).value = '-';
-        ws.getCell('F'+row).value = 0;
-        ws.getCell('G'+row).value = 0;
-      }
-    }
-
-    const outBuf = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([outBuf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const range = getReportRange();
+    const data = range ? await buildRangeState(range) : state;
+    const { buffer, overflow, fname } = await buildMileageReportBuffer(data, range);
+    const blob = new Blob([buffer], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    const fname = `mileage_log_${(data.meta.name||'bdm').replace(/\s+/g,'_')}_${monthName}_${year}.xlsx`;
     a.href = url; a.download = fname;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
@@ -2181,6 +2258,7 @@ async function exportMonthlyMileageXlsx(){
     showToast('Could not build the mileage log — ' + e.message);
   }
 }
+
 
 async function exportCSV(){
   const range = getReportRange();
