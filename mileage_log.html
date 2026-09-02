@@ -28,6 +28,9 @@
     --line-dark:#9DC0F0;
     --good:#00D26A;
     --bad:#E5384D;
+    --warn:#C98500;
+    --series-1:#EB6834;
+    --series-2:#4A3AA7;
     --mono:'JetBrains Mono', 'SF Mono', 'Consolas', monospace;
     --sans:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
@@ -221,6 +224,47 @@
   .report-row .v.warn{ color:var(--bad); }
   .report-row .v.ok{ color:var(--good); }
 
+  /* ---------- Dashboard: alerts / at-a-glance stats / split charts ---------- */
+  .dash-overview{ margin-bottom:20px; }
+  .dash-alerts{ margin-bottom:14px; }
+  .alert-item{
+    display:flex; align-items:flex-start; gap:8px; padding:10px 12px; border-radius:8px;
+    border-left:4px solid var(--slate); background:var(--paper-dim);
+    font-size:13.5px; line-height:1.4; margin-bottom:8px;
+  }
+  .alert-item:last-child{ margin-bottom:0; }
+  .alert-item.sev-bad{ border-left-color:var(--bad); background:#FDECEE; }
+  .alert-item.sev-warn{ border-left-color:var(--warn); background:#FFF6E0; }
+  .alert-item.sev-info{ border-left-color:var(--slate); background:var(--paper-dim); }
+
+  .stat-hero{
+    background:var(--ink); color:var(--amber); border-radius:12px;
+    padding:14px 16px; margin-bottom:10px; text-align:center;
+  }
+  .stat-hero .stat-label{ font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--amber); opacity:.8; font-weight:700; margin-bottom:4px; }
+  .stat-hero .stat-value{ font-family:var(--mono); font-size:27px; font-weight:800; }
+  .stat-grid{ display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin-bottom:18px; }
+  .stat-tile{ background:var(--paper-dim); border-radius:10px; padding:9px 6px; text-align:center; }
+  .stat-tile .stat-label{ font-size:10px; text-transform:uppercase; letter-spacing:.03em; color:var(--slate); font-weight:700; margin-bottom:3px; line-height:1.2; }
+  .stat-tile .stat-value{ font-family:var(--mono); font-size:15.5px; font-weight:700; color:var(--amber-text); }
+
+  .split-chart{ margin-bottom:16px; }
+  .split-title{ font-family:var(--mono); font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--slate); font-weight:700; margin-bottom:5px; }
+  .split-track{ display:flex; height:22px; border-radius:6px; overflow:hidden; background:var(--paper); gap:2px; }
+  .split-seg.seg-a{ background:var(--series-1); }
+  .split-seg.seg-b{ background:var(--series-2); }
+  .split-seg.seg-empty{ background:var(--line); }
+  .split-legend{ display:flex; flex-wrap:wrap; gap:4px 16px; font-size:12.5px; color:var(--slate); margin-top:6px; }
+  .split-key{ display:flex; align-items:center; }
+  .split-key .swatch{ display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:5px; flex-shrink:0; }
+  .split-key .swatch.a{ background:var(--series-1); }
+  .split-key .swatch.b{ background:var(--series-2); }
+  .split-empty-msg{ font-size:12.5px; color:var(--slate); font-style:italic; margin-top:6px; }
+
+  .detail-toggle{ cursor:pointer; user-select:none; }
+  .detail-toggle .chevron{ font-family:var(--sans); font-weight:700; color:var(--slate); }
+  .full-detail.collapsed{ display:none; }
+
   .daily-log-table{
     width:100%; border-collapse:collapse; font-size:13px; font-family:var(--mono);
   }
@@ -289,6 +333,7 @@
 @media print{
     body{ background:#fff; }
     .topbar, .tabs, .dock, .action-bar, .entry-del, .entry-edit, .meta-edit-btn, .receipt-buttons, .receipt-thumb, .storage-banner{ display:none !important; }
+    .dash-overview, .detail-toggle{ display:none !important; }
     .panel{ background:#fff; }
     .section{ display:none !important; }
     .section.print-active{ display:block !important; }
@@ -1702,6 +1747,82 @@ async function toggleIncludeJourney(checked){
   renderSummary();
 }
 
+/* ---------------- Dashboard: alerts, at-a-glance stats, split charts ---------------- */
+
+let dashDetailExpanded = false;
+
+function buildDashAlerts(){
+  const alerts = [];
+
+  const missing = [];
+  if(!state.meta.name || !state.meta.name.trim()) missing.push('your name');
+  if(!state.meta.reg || !state.meta.reg.trim()) missing.push('vehicle registration');
+  if(!state.odo || !state.odo.start) missing.push('start-of-month odometer reading');
+  if(missing.length){
+    alerts.push({sev:'bad', text:`Header details incomplete — add ${missing.join(', ')} before exporting (Edit header details).`});
+  }
+
+  const noEntries = state.mileage.length===0 && state.expenses.length===0 && state.fuel.length===0;
+  if(noEntries){
+    alerts.push({sev:'info', text:'Nothing logged yet this month — add mileage, fuel or expenses to build your report.'});
+  }
+
+  const missingReceipts = [...state.expenses, ...state.fuel].filter(e=>!e.receipt).length;
+  if(missingReceipts>0){
+    alerts.push({sev:'warn', text:`${missingReceipts} expense/fuel ${missingReceipts===1?'entry has':'entries have'} no receipt attached.`});
+  }
+
+  const maxRows = XLSX_DATA_LAST_ROW - XLSX_DATA_FIRST_ROW + 1;
+  const expenseRowCount = state.expenses.length + (state.standingCharges||[]).filter(c=>c.enabled).length;
+  if(state.fuel.length > maxRows || expenseRowCount > maxRows){
+    alerts.push({sev:'warn', text:`You have more entries than the expense report template can hold (${maxRows} rows) — some will be left off the .xlsx export. Let Mick know if it needs widening.`});
+  }
+
+  if(alerts.length===0) return '';
+  return `<div class="dash-alerts">${alerts.map(a=>`<div class="alert-item sev-${a.sev}">${a.text}</div>`).join('')}</div>`;
+}
+
+function buildDashStats(t){
+  return `
+    <div class="stat-hero">
+      <div class="stat-label">Total (fuel + other expenses)</div>
+      <div class="stat-value">${fmtMoney(t.grandTotal)}</div>
+    </div>
+    <div class="stat-grid">
+      <div class="stat-tile"><div class="stat-label">Business mi</div><div class="stat-value">${fmtMi(t.biz)}</div></div>
+      <div class="stat-tile"><div class="stat-label">Personal mi</div><div class="stat-value">${fmtMi(t.pers)}</div></div>
+      <div class="stat-tile"><div class="stat-label">Total mi</div><div class="stat-value">${fmtMi(t.totalMi)}</div></div>
+      <div class="stat-tile"><div class="stat-label">Fuel cost</div><div class="stat-value">${fmtMoney(t.fuelCost)}</div></div>
+      <div class="stat-tile"><div class="stat-label">Other exp.</div><div class="stat-value">${fmtMoney(t.expTotal)}</div></div>
+    </div>`;
+}
+
+function buildSplitBar(title, aLabel, aVal, bLabel, bVal, fmt, emptyMsg){
+  const total = aVal + bVal;
+  const empty = total <= 0;
+  const aPct = empty ? 0 : (aVal/total*100);
+  const bPct = empty ? 0 : (bVal/total*100);
+  const track = empty
+    ? `<div class="split-seg seg-empty" style="width:100%;"></div>`
+    : `<div class="split-seg seg-a" style="width:${aPct}%;"></div><div class="split-seg seg-b" style="width:${bPct}%;"></div>`;
+  const legend = empty
+    ? `<div class="split-empty-msg">${emptyMsg}</div>`
+    : `<div class="split-legend">
+        <span class="split-key"><i class="swatch a"></i>${aLabel} — ${fmt(aVal)} (${Math.round(aPct)}%)</span>
+        <span class="split-key"><i class="swatch b"></i>${bLabel} — ${fmt(bVal)} (${Math.round(bPct)}%)</span>
+      </div>`;
+  return `<div class="split-chart">
+    <div class="split-title">${title}</div>
+    <div class="split-track">${track}</div>
+    ${legend}
+  </div>`;
+}
+
+function toggleFullDetail(){
+  dashDetailExpanded = !dashDetailExpanded;
+  renderSummary();
+}
+
 function renderSummary(){
   const t = totals();
   const startV = parseFloat(state.odo.start);
@@ -1710,69 +1831,91 @@ function renderSummary(){
   const includeJourney = !!(state.reportOptions && state.reportOptions.includeJourney);
 
   document.getElementById('summaryContent').innerHTML = `
-    <div class="report-block">
-      <div class="report-head">Header</div>
-      <div class="report-row"><span>BDM</span><span class="v">${state.meta.name||'—'}</span></div>
-      <div class="report-row"><span>Market</span><span class="v">${state.meta.market||'—'}</span></div>
-      <div class="report-row"><span>Period</span><span class="v">${state.meta.month} ${state.meta.year}</span></div>
-      <div class="report-row"><span>Registration</span><span class="v">${state.meta.reg||'—'}</span></div>
-      <div class="report-row"><span>Engine</span><span class="v">${state.meta.engine||'—'}</span></div>
-      <div class="report-row"><span>Fuel type</span><span class="v">${state.meta.fuelType||'—'}</span></div>
+    <div class="dash-overview">
+      ${buildDashAlerts()}
+      ${buildDashStats(t)}
+      ${buildSplitBar('Mileage split', 'Business', t.biz, 'Personal', t.pers, v=>fmtMi(v)+' mi', 'No mileage logged yet this month.')}
+      ${buildSplitBar('Spend split', 'Fuel', t.fuelCost, 'Other expenses', t.expTotal, fmtMoney, 'No spend logged yet this month.')}
     </div>
-    <div class="report-block">
-      <div class="report-head">Mileage</div>
-      <div class="report-row"><span>Odometer start</span><span class="v">${hasOdo?fmtMi(startV):'—'}</span></div>
-      <div class="report-row"><span>Odometer end</span><span class="v">${hasOdo?fmtMi(endV):'—'}</span></div>
-      <div class="report-row"><span>Business mileage</span><span class="v">${fmtMi(t.biz)}</span></div>
-      <div class="report-row"><span>Personal mileage</span><span class="v">${fmtMi(t.pers)}</span></div>
-      <div class="report-row total"><span>Total mileage</span><span class="v">${fmtMi(t.totalMi)}</span></div>
+    <div class="section-title detail-toggle" style="margin-top:4px;" onclick="toggleFullDetail()">
+      <span>Full report detail</span>
+      <span class="chevron">${dashDetailExpanded ? '▴' : '▾'}</span>
     </div>
-    <div class="report-block">
-      <div class="report-head">Fuel</div>
-      ${buildFuelTable()}
-      <div class="report-row"><span>Total litres</span><span class="v">${t.fuelLitres.toFixed(2)}</span></div>
-      <div class="report-row"><span>Average price/litre</span><span class="v">${t.fuelLitres>0?'£'+t.avgPrice.toFixed(3):'—'}</span></div>
-      <div class="report-row total"><span>Total fuel cost</span><span class="v">${fmtMoney(t.fuelCost)}</span></div>
-    </div>
-    <div class="report-block">
-      <div class="report-head">Other expenses</div>
-      ${buildExpensesTable()}
-      ${t.standingTotal>0 ? `<div class="report-row"><span>Logged expenses</span><span class="v">${fmtMoney(t.loggedExpTotal)}</span></div>
-      <div class="report-row"><span>Ongoing expenses (standing charges)</span><span class="v">${fmtMoney(t.standingTotal)}</span></div>` : ''}
-      <div class="report-row total"><span>Total other expenses</span><span class="v">${fmtMoney(t.expTotal)}</span></div>
-    </div>
-    <div class="report-block">
-      <div class="report-head">Combined total</div>
-      <div class="report-row"><span>Fuel</span><span class="v">${fmtMoney(t.fuelCost)}</span></div>
-      <div class="report-row"><span>Other expenses</span><span class="v">${fmtMoney(t.expTotal)}</span></div>
-      <div class="report-row total"><span>TOTAL (fuel + other expenses)</span><span class="v">${fmtMoney(t.grandTotal)}</span></div>
-    </div>
-    <div class="report-block">
-      <div class="report-head" style="display:flex; justify-content:space-between; align-items:center; border-bottom:none; margin-bottom:4px;">
-        <span>Daily log</span>
-        <label style="display:flex; align-items:center; gap:6px; font-family:var(--sans); font-size:11.5px; color:var(--ink); text-transform:none; letter-spacing:0; font-weight:600; cursor:pointer;">
-          <input type="checkbox" id="includeJourneyCheckbox" ${includeJourney?'checked':''} onchange="toggleIncludeJourney(this.checked)" style="width:auto; margin:0;">
-          Include journey start/end
-        </label>
+    <div class="full-detail ${dashDetailExpanded ? '' : 'collapsed'}">
+      <div class="report-block">
+        <div class="report-head">Header</div>
+        <div class="report-row"><span>BDM</span><span class="v">${state.meta.name||'—'}</span></div>
+        <div class="report-row"><span>Market</span><span class="v">${state.meta.market||'—'}</span></div>
+        <div class="report-row"><span>Period</span><span class="v">${state.meta.month} ${state.meta.year}</span></div>
+        <div class="report-row"><span>Registration</span><span class="v">${state.meta.reg||'—'}</span></div>
+        <div class="report-row"><span>Engine</span><span class="v">${state.meta.engine||'—'}</span></div>
+        <div class="report-row"><span>Fuel type</span><span class="v">${state.meta.fuelType||'—'}</span></div>
       </div>
-      <div style="border-bottom:1px solid var(--line); margin-bottom:8px;"></div>
-      ${buildDailyLogTable()}
+      <div class="report-block">
+        <div class="report-head">Mileage</div>
+        <div class="report-row"><span>Odometer start</span><span class="v">${hasOdo?fmtMi(startV):'—'}</span></div>
+        <div class="report-row"><span>Odometer end</span><span class="v">${hasOdo?fmtMi(endV):'—'}</span></div>
+        <div class="report-row"><span>Business mileage</span><span class="v">${fmtMi(t.biz)}</span></div>
+        <div class="report-row"><span>Personal mileage</span><span class="v">${fmtMi(t.pers)}</span></div>
+        <div class="report-row total"><span>Total mileage</span><span class="v">${fmtMi(t.totalMi)}</span></div>
+      </div>
+      <div class="report-block">
+        <div class="report-head">Fuel</div>
+        ${buildFuelTable()}
+        <div class="report-row"><span>Total litres</span><span class="v">${t.fuelLitres.toFixed(2)}</span></div>
+        <div class="report-row"><span>Average price/litre</span><span class="v">${t.fuelLitres>0?'£'+t.avgPrice.toFixed(3):'—'}</span></div>
+        <div class="report-row total"><span>Total fuel cost</span><span class="v">${fmtMoney(t.fuelCost)}</span></div>
+      </div>
+      <div class="report-block">
+        <div class="report-head">Other expenses</div>
+        ${buildExpensesTable()}
+        ${t.standingTotal>0 ? `<div class="report-row"><span>Logged expenses</span><span class="v">${fmtMoney(t.loggedExpTotal)}</span></div>
+        <div class="report-row"><span>Ongoing expenses (standing charges)</span><span class="v">${fmtMoney(t.standingTotal)}</span></div>` : ''}
+        <div class="report-row total"><span>Total other expenses</span><span class="v">${fmtMoney(t.expTotal)}</span></div>
+      </div>
+      <div class="report-block">
+        <div class="report-head">Combined total</div>
+        <div class="report-row"><span>Fuel</span><span class="v">${fmtMoney(t.fuelCost)}</span></div>
+        <div class="report-row"><span>Other expenses</span><span class="v">${fmtMoney(t.expTotal)}</span></div>
+        <div class="report-row total"><span>TOTAL (fuel + other expenses)</span><span class="v">${fmtMoney(t.grandTotal)}</span></div>
+      </div>
+      <div class="report-block">
+        <div class="report-head" style="display:flex; justify-content:space-between; align-items:center; border-bottom:none; margin-bottom:4px;">
+          <span>Daily log</span>
+          <label style="display:flex; align-items:center; gap:6px; font-family:var(--sans); font-size:11.5px; color:var(--ink); text-transform:none; letter-spacing:0; font-weight:600; cursor:pointer;">
+            <input type="checkbox" id="includeJourneyCheckbox" ${includeJourney?'checked':''} onchange="toggleIncludeJourney(this.checked)" style="width:auto; margin:0;">
+            Include journey start/end
+          </label>
+        </div>
+        <div style="border-bottom:1px solid var(--line); margin-bottom:8px;"></div>
+        ${buildDailyLogTable()}
+      </div>
     </div>
   `;
 }
 
 function openReportModal(){
+  const prevExpanded = dashDetailExpanded;
+  dashDetailExpanded = true;
   renderSummary();
   document.getElementById('reportModalContent').innerHTML = document.getElementById('summaryContent').innerHTML;
   document.getElementById('reportModalBackdrop').classList.add('show');
+  dashDetailExpanded = prevExpanded;
+  renderSummary();
 }
 
 /* ---------------- Print ---------------- */
 function printReport(){
+  const prevExpanded = dashDetailExpanded;
+  dashDetailExpanded = true;
   renderSummary();
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('print-active'));
   document.querySelector('.section[data-section="summary"]').classList.add('print-active');
-  setTimeout(()=>{ window.print(); }, 50);
+  setTimeout(()=>{
+    window.print();
+    dashDetailExpanded = prevExpanded;
+    renderSummary();
+  }, 50);
 }
 
 /* ---------------- Export ---------------- */
